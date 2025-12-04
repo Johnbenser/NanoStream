@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Plus, Trash2, Shield, User as UserIcon, Save, X, AlertTriangle } from 'lucide-react';
+import { User, Plus, Trash2, Shield, User as UserIcon, Save, X, AlertTriangle, Database, HardDrive } from 'lucide-react';
 import { User as UserType } from '../types';
-import { getUsers, addUser, deleteUser, getCurrentUser } from '../services/authService';
+import { getUsers, addUser, deleteUser, getCurrentUser, isSystemUser } from '../services/authService';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<UserType[]>([]);
@@ -26,6 +26,10 @@ const UserManagement: React.FC = () => {
   const initiateDelete = (id: string, username: string) => {
     if (username === currentUser) {
       alert("You cannot delete yourself.");
+      return;
+    }
+    if (isSystemUser(id)) {
+      alert("System Users are defined in code (authService.ts) and cannot be deleted from the UI. Remove them from the source code to delete.");
       return;
     }
     setDeleteId(id);
@@ -71,6 +75,19 @@ const UserManagement: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+       {/* Info Banner */}
+       <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-start gap-3">
+          <Database className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <h4 className="font-bold text-blue-300">Deployment Notice</h4>
+            <p className="text-gray-400 mt-1">
+              Users with the <span className="inline-flex items-center gap-1 text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-300"><HardDrive className="w-3 h-3"/> System</span> badge are permanent and work on all devices. 
+              Users added via the button below are <strong>Local Only</strong> (stored in this browser). 
+              To add permanent team members, edit <code>services/authService.ts</code> before deploying.
+            </p>
+          </div>
+       </div>
+
        {/* Header */}
        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-800 p-6 rounded-xl border border-gray-700">
          <div>
@@ -84,7 +101,7 @@ const UserManagement: React.FC = () => {
            onClick={() => setIsAdding(true)}
            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
          >
-           <Plus className="w-4 h-4" /> Add Team Member
+           <Plus className="w-4 h-4" /> Add Local User
          </button>
        </div>
 
@@ -92,7 +109,7 @@ const UserManagement: React.FC = () => {
        {isAdding && (
          <div className="bg-gray-800 p-6 rounded-xl border border-purple-500/30 shadow-lg animate-in slide-in-from-top-4">
             <div className="flex justify-between items-center mb-4">
-              <h4 className="font-bold text-white">New User Details</h4>
+              <h4 className="font-bold text-white">New Local User Details</h4>
               <button onClick={() => setIsAdding(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -154,17 +171,26 @@ const UserManagement: React.FC = () => {
                </tr>
              </thead>
              <tbody className="divide-y divide-gray-700">
-               {users.map(user => (
+               {users.map(user => {
+                 const isSystem = isSystemUser(user.id);
+                 return (
                  <tr key={user.id} className="hover:bg-gray-750/50 transition-colors">
                     <td className="px-6 py-4">
                        <div className="flex items-center gap-3">
                          <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
                             <UserIcon className="w-4 h-4 text-gray-400" />
                          </div>
-                         <span className="font-medium text-white">{user.username}</span>
-                         {user.username === currentUser && (
-                           <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">You</span>
-                         )}
+                         <div className="flex flex-col">
+                           <div className="flex items-center gap-2">
+                             <span className="font-medium text-white">{user.username}</span>
+                             {user.username === currentUser && (
+                               <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">You</span>
+                             )}
+                           </div>
+                           <span className="text-xs text-gray-500 flex items-center gap-1">
+                             {isSystem ? <><HardDrive className="w-3 h-3"/> System (Global)</> : "Local (This Browser)"}
+                           </span>
+                         </div>
                        </div>
                     </td>
                     <td className="px-6 py-4">
@@ -176,25 +202,28 @@ const UserManagement: React.FC = () => {
                         <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded font-medium">EDITOR</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-green-400 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500"></span> Active
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span> 
+                        <span className="text-green-400">Active</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                        <button 
                          onClick={() => initiateDelete(user.id, user.username)}
-                         disabled={user.username === currentUser}
+                         disabled={user.username === currentUser || isSystem}
                          className={`p-2 rounded-lg transition-colors ${
-                           user.username === currentUser 
-                             ? 'text-gray-600 cursor-not-allowed' 
+                           user.username === currentUser || isSystem
+                             ? 'text-gray-600 cursor-not-allowed opacity-50' 
                              : 'text-gray-400 hover:bg-red-500/10 hover:text-red-400'
                          }`}
-                         title="Remove User"
+                         title={isSystem ? "Cannot delete System User" : "Remove User"}
                        >
                          <Trash2 className="w-4 h-4" />
                        </button>
                     </td>
                  </tr>
-               ))}
+               );})}
              </tbody>
           </table>
        </div>
@@ -208,7 +237,7 @@ const UserManagement: React.FC = () => {
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Remove Team Member?</h3>
               <p className="text-gray-400 text-sm mb-6">
-                Are you sure you want to remove <span className="text-white font-semibold">{deleteName}</span>? They will lose access immediately.
+                Are you sure you want to remove <span className="text-white font-semibold">{deleteName}</span>? They will lose access on this browser immediately.
               </p>
               <div className="flex gap-3 justify-center">
                 <button 
