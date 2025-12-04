@@ -2,8 +2,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Creator, AnalysisResult, CaptionResult } from '../types';
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+  // Support both process.env (Node/CRA) and import.meta.env (Vite/Vercel)
+  // This prevents "process is not defined" errors in modern browser builds
+  const apiKey = (typeof process !== 'undefined' ? process.env.API_KEY : undefined) 
+              || (typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env.VITE_API_KEY : undefined);
+              
   if (!apiKey) {
+    console.warn("API Key is missing. Check your .env file or Vercel Environment Variables.");
     throw new Error("API_KEY environment variable is missing.");
   }
   return new GoogleGenAI({ apiKey });
