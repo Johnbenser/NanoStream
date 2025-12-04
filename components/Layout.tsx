@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock } from 'lucide-react';
 import { ViewState } from '../types';
-import { logout, getCurrentUser, getCurrentUserRole } from '../services/authService';
+import { logout } from '../services/authService';
 import { addLog } from '../services/storageService';
 
 interface LayoutProps {
@@ -9,16 +9,19 @@ interface LayoutProps {
   activeView: ViewState;
   onNavigate: (view: ViewState) => void;
   onLogout: () => void;
+  userRole: 'ADMIN' | 'EDITOR' | 'CSR';
+  userEmail: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLogout, userRole, userEmail }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const currentUser = getCurrentUser();
-  const userRole = getCurrentUserRole();
 
-  const handleLogout = () => {
-    addLog('LOGOUT', 'System Exit');
-    logout();
+  // Extract username from synthetic email (user@nanostream.internal -> user)
+  const displayUsername = userEmail ? userEmail.split('@')[0] : 'User';
+
+  const handleLogout = async () => {
+    await addLog('LOGOUT', 'System Exit');
+    await logout();
     onLogout();
   };
 
@@ -62,7 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
               NanoStream
             </h1>
-            <p className="text-xs text-gray-500 mt-1">Creator Management AI</p>
+            <p className="text-xs text-gray-500 mt-1">Firebase Cloud Edition</p>
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
@@ -89,10 +92,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
             <div className="bg-gray-900/50 rounded-lg p-3 mb-3">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase ${getAvatarGradient()}`}>
-                  {currentUser ? currentUser.substring(0, 2) : 'US'}
+                  {displayUsername.substring(0, 2)}
                 </div>
-                <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">{currentUser || 'User'}</p>
+                <div className="overflow-hidden w-full">
+                  <p className="text-sm font-medium text-white truncate w-full" title={displayUsername}>{displayUsername}</p>
                   <p className="text-xs text-gray-500">{getRoleLabel()}</p>
                 </div>
               </div>
@@ -111,7 +114,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
         <header className="lg:hidden bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
            <h1 className="text-xl font-bold text-white">NanoStream</h1>
            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-300">

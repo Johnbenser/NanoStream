@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { 
   Plus, Search, Mail, Phone, Video, MessageCircle, Heart, 
-  Trash2, Edit2, Download, Upload, LayoutGrid, Table as TableIcon,
+  Trash2, Edit2, LayoutGrid, Table as TableIcon,
   AlertTriangle, Link as LinkIcon, RefreshCw, ExternalLink, Save, X,
-  FileSpreadsheet, FileText
+  FileSpreadsheet, FileText, Cloud
 } from 'lucide-react';
 import { Creator, CreatorFormData } from '../types';
 import { saveCreator, deleteCreator } from '../services/storageService';
@@ -11,17 +11,18 @@ import { scrapeVideoStats } from '../services/geminiService';
 
 interface CreatorListProps {
   creators: Creator[];
-  onRefresh: () => void;
+  // onRefresh is deprecated since we use real-time listeners now, but keeping for interface comp
+  onRefresh?: () => void; 
 }
 
-const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
+const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteName, setDeleteName] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Manual Sync Modal State
   const [isManualSyncOpen, setIsManualSyncOpen] = useState(false);
@@ -70,26 +71,26 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveCreator(formData, editingId || undefined);
+    await saveCreator(formData, editingId || undefined);
     setIsModalOpen(false);
-    onRefresh();
   };
 
-  const handleDeleteClick = (id: string, e?: React.MouseEvent) => {
+  const handleDeleteClick = (id: string, name: string, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     setDeleteId(id);
+    setDeleteName(name);
   };
 
-  const confirmDelete = () => {
-    if (deleteId) {
-      deleteCreator(deleteId);
-      onRefresh();
+  const confirmDelete = async () => {
+    if (deleteId && deleteName) {
+      await deleteCreator(deleteId, deleteName);
       setDeleteId(null);
+      setDeleteName(null);
     }
   };
 
@@ -119,8 +120,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
           avgLikes: stats.likes,
           avgComments: stats.comments,
         };
-        saveCreator(updatedData, creator.id);
-        onRefresh();
+        await saveCreator(updatedData, creator.id);
       } else {
         // Failure or 0 data: Trigger Manual Override
         setManualSyncData({
@@ -134,7 +134,6 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
       }
     } catch (err) {
       console.error(err);
-      // Fallback to manual
       setManualSyncData({
         id: creator.id,
         url: creator.videoLink,
@@ -148,7 +147,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
     }
   };
 
-  const handleManualSyncSubmit = (e: React.FormEvent) => {
+  const handleManualSyncSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualSyncData) return;
     
@@ -166,8 +165,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
         avgLikes: manualSyncData.likes,
         avgComments: manualSyncData.comments,
     };
-    saveCreator(updatedData, creator.id);
-    onRefresh();
+    await saveCreator(updatedData, creator.id);
     setIsManualSyncOpen(false);
     setManualSyncData(null);
   };
@@ -265,43 +263,6 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
     link.click();
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split('\n');
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const cols = lines[i].split(',').map(s => s.replace(/^"|"$/g, '').trim());
-        if (cols.length >= 8) {
-           const newCreator: CreatorFormData = {
-             name: cols[0] || 'Unknown',
-             niche: cols[1] || 'General',
-             email: cols[2] || '',
-             phone: cols[3] || '',
-             videoLink: cols[4] || '', 
-             avgViews: Number(cols[5]) || 0,
-             avgLikes: Number(cols[6]) || 0,
-             avgComments: Number(cols[7]) || 0,
-             videosCount: Number(cols[8]) || 0,
-           };
-           saveCreator(newCreator);
-        }
-      }
-      onRefresh();
-      alert('Import successful!');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    reader.readAsText(file);
-  };
-
   const filteredCreators = creators.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.niche.toLowerCase().includes(searchTerm.toLowerCase())
@@ -309,13 +270,10 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
 
   return (
     <div className="space-y-6">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileUpload} 
-        accept=".csv" 
-        className="hidden" 
-      />
+      <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl flex items-center gap-2 text-purple-200 text-sm">
+        <Cloud className="w-4 h-4" />
+        All changes are automatically synced to Firebase Cloud Database.
+      </div>
 
       {/* Toolbar */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
@@ -347,10 +305,6 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
           </div>
 
           <div className="w-px h-8 bg-gray-700 mx-2 hidden xl:block"></div>
-
-          <button onClick={handleImportClick} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-            <Upload className="w-4 h-4" /> Import CSV
-          </button>
           
           <button onClick={handleExportCSV} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors" title="Backup Raw Data">
             <FileText className="w-4 h-4" /> CSV
@@ -369,7 +323,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
       {/* Content Area */}
       {filteredCreators.length === 0 ? (
         <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed">
-          <p>No creators found. Add one manually or import a CSV.</p>
+          <p>No creators found. Add one to start syncing.</p>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
@@ -386,7 +340,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
                   <button onClick={() => handleOpenModal(creator)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
                     <Edit2 className="w-4 h-4 pointer-events-none" />
                   </button>
-                  <button onClick={(e) => handleDeleteClick(creator.id, e)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors">
+                  <button onClick={(e) => handleDeleteClick(creator.id, creator.name, e)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4 pointer-events-none" />
                   </button>
                 </div>
@@ -480,7 +434,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-3">
                         <button onClick={() => handleOpenModal(creator)} className="text-gray-500 hover:text-purple-400"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={(e) => handleDeleteClick(creator.id, e)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={(e) => handleDeleteClick(creator.id, creator.name, e)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -577,7 +531,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
              
              <div className="p-6">
                 <p className="text-gray-300 text-sm mb-4">
-                   AI could not verify the exact numbers (the video might be too new for the search index). Please verify the link below and enter the data manually.
+                   AI could not verify the exact numbers. Please verify manually.
                 </p>
                 
                 <div className="bg-gray-900 p-3 rounded-lg mb-6 border border-gray-700 flex items-center justify-between">
@@ -648,7 +602,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, onRefresh }) => {
               </p>
               <div className="flex gap-3 justify-center">
                 <button 
-                  onClick={() => setDeleteId(null)}
+                  onClick={() => { setDeleteId(null); setDeleteName(null); }}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors font-medium"
                 >
                   Cancel

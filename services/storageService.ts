@@ -1,153 +1,105 @@
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db, auth } from './firebase';
 import { Creator, CreatorFormData, LogEntry } from '../types';
-import { getCurrentUser } from './authService';
 
-const STORAGE_KEY = 'nanostream_creators_v1';
-const LOGS_KEY = 'nanostream_logs_v1';
+const CREATORS_COLLECTION = 'creators';
+const LOGS_COLLECTION = 'logs';
 
-// Seed data to make the app look good initially
-const SEED_DATA: Creator[] = [
-  {
-    id: '1',
-    name: 'Sarah Jenkins',
-    niche: 'Lifestyle & Wellness',
-    email: 'sarah.j@example.com',
-    phone: '+1-555-0101',
-    videoLink: 'https://www.tiktok.com/@sarahjenkins/video/7285619234567',
-    avgViews: 12500,
-    avgLikes: 2300,
-    avgComments: 145,
-    videosCount: 15,
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'TechWithMike',
-    niche: 'Tech Reviews',
-    email: 'mike.tech@example.com',
-    phone: '+1-555-0102',
-    videoLink: '',
-    avgViews: 45000,
-    avgLikes: 5600,
-    avgComments: 890,
-    videosCount: 8,
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    name: 'Chef Bella',
-    niche: 'Cooking',
-    email: 'bella.cooks@example.com',
-    phone: '+1-555-0103',
-    videoLink: 'https://www.instagram.com/reel/Cxyz123abc',
-    avgViews: 8900,
-    avgLikes: 1200,
-    avgComments: 60,
-    videosCount: 22,
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: '4',
-    name: 'Travel Tom',
-    niche: 'Travel',
-    email: 'tom.t@example.com',
-    phone: '+1-555-0104',
-    avgViews: 28000,
-    avgLikes: 3400,
-    avgComments: 210,
-    videosCount: 5,
-    lastUpdated: new Date().toISOString(),
-  },
-];
+// --- REAL-TIME LISTENERS ---
 
-export const getCreators = (): Creator[] => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_DATA));
-    return SEED_DATA;
-  }
-  try {
-    const parsed = JSON.parse(stored);
-    // Critical fix: Ensure we return an array, otherwise .map will fail
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.error("Failed to parse storage", e);
-    return [];
-  }
-};
-
-// Logs Helper
-export const getLogs = (): LogEntry[] => {
-  const stored = localStorage.getItem(LOGS_KEY);
-  if (!stored) return [];
-  try {
-    const parsed = JSON.parse(stored);
-    // Critical fix: Ensure we return an array
-    const logs = Array.isArray(parsed) ? parsed : [];
-    
-    return logs.sort((a: LogEntry, b: LogEntry) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  } catch (e) {
-    return [];
-  }
-};
-
-export const addLog = (action: LogEntry['action'], target: string): void => {
-  const logs = getLogs();
-  const user = getCurrentUser() || 'Unknown';
+export const subscribeToCreators = (
+  onData: (creators: Creator[]) => void, 
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, CREATORS_COLLECTION), orderBy('lastUpdated', 'desc'));
   
-  const newLog: LogEntry = {
-    id: Date.now().toString() + Math.random().toString().slice(2, 5),
-    action,
-    target,
-    user,
-    timestamp: new Date().toISOString()
-  };
-  
-  // Keep last 100 logs
-  const updatedLogs = [newLog, ...logs].slice(0, 100);
-  localStorage.setItem(LOGS_KEY, JSON.stringify(updatedLogs));
+  return onSnapshot(q, (snapshot) => {
+    const creators = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Creator[];
+    onData(creators);
+  }, (error) => {
+    console.error("Firebase Creators Sync Error:", error);
+    if (onError) onError(error);
+  });
 };
 
-export const saveCreator = (data: CreatorFormData, id?: string): void => {
-  const creators = getCreators();
-  if (id) {
-    // Update
-    const index = creators.findIndex((c) => c.id === id);
-    if (index !== -1) {
-      creators[index] = { ...creators[index], ...data, lastUpdated: new Date().toISOString() };
+export const subscribeToLogs = (
+  onData: (logs: LogEntry[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, LOGS_COLLECTION), orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as LogEntry[];
+    onData(logs);
+  }, (error) => {
+    console.error("Firebase Logs Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+// --- ACTIONS ---
+
+export const addLog = async (action: LogEntry['action'], target: string): Promise<void> => {
+  try {
+    const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
+    await addDoc(collection(db, LOGS_COLLECTION), {
+      action,
+      target,
+      user,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    // Silently fail for logs if permissions are strict
+    console.warn("Failed to add log (likely permission issue):", e);
+  }
+};
+
+export const saveCreator = async (data: CreatorFormData, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      // Update existing
+      const creatorRef = doc(db, CREATORS_COLLECTION, id);
+      await updateDoc(creatorRef, {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
       addLog('UPDATE', `Creator: ${data.name}`);
+    } else {
+      // Create new
+      await addDoc(collection(db, CREATORS_COLLECTION), {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
+      addLog('CREATE', `Creator: ${data.name}`);
     }
-  } else {
-    // Create
-    const newCreator: Creator = {
-      ...data,
-      id: Date.now().toString(),
-      lastUpdated: new Date().toISOString(),
-    };
-    creators.push(newCreator);
-    addLog('CREATE', `Creator: ${data.name}`);
+  } catch (e) {
+    console.error("Error saving creator:", e);
+    throw e;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(creators));
 };
 
-export const deleteCreator = (id: string): void => {
-  let creators = getCreators();
-  const targetId = String(id);
-  
-  // Find name for logging before deletion
-  const creatorToDelete = creators.find(c => String(c.id) === targetId);
-  const name = creatorToDelete ? creatorToDelete.name : 'Unknown';
-
-  const initialLength = creators.length;
-  creators = creators.filter(c => String(c.id) !== targetId);
-  
-  if (creators.length === initialLength) {
-    console.warn(`Delete failed: Creator with ID ${id} not found.`);
-    return;
+export const deleteCreator = async (id: string, name: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, CREATORS_COLLECTION, id));
+    addLog('DELETE', `Creator: ${name}`);
+  } catch (e) {
+    console.error("Error deleting creator:", e);
+    throw e;
   }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(creators));
-  addLog('DELETE', `Creator: ${name}`);
-  console.log(`Deleted creator ${name} (${id})`);
 };

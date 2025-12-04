@@ -1,13 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { History, Shield, Trash2, Edit, Plus, User, FileSpreadsheet, LogIn, LogOut } from 'lucide-react';
 import { LogEntry } from '../types';
-import { getLogs } from '../services/storageService';
+import { subscribeToLogs } from '../services/storageService';
 
 const ActivityLogs: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
-    setLogs(getLogs());
+    // Subscribe to logs, ignoring detailed connection errors here as App.tsx handles global DB alerts
+    const unsubscribe = subscribeToLogs(
+      (data) => {
+        setLogs(data);
+      },
+      (error) => {
+        console.warn("Log sync warning:", error.message);
+      }
+    );
+    return () => unsubscribe();
   }, []);
 
   const getIcon = (action: LogEntry['action']) => {
