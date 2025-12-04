@@ -157,11 +157,15 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
         ) : error ? (
           <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
             <p className="text-red-400 font-medium mb-1">Analysis Failed</p>
-            <p className="text-gray-400 text-sm">{error}</p>
+            <p className="text-gray-400 text-sm mb-3">{error}</p>
             {error.includes("Key") && (
-              <p className="text-xs text-gray-500 mt-2 italic">
-                Tip: In Vercel, ensure your variable is named <strong>VITE_API_KEY</strong> (not just API_KEY).
-              </p>
+              <div className="text-xs text-yellow-400 mt-2 bg-yellow-400/10 p-3 rounded border border-yellow-400/20">
+                <p className="font-bold mb-1">Vercel Configuration Required:</p>
+                <p>1. Go to Vercel Settings → Environment Variables.</p>
+                <p>2. Add Key: <code>VITE_GEMINI_API_KEY</code></p>
+                <p>3. Paste your Gemini API Key.</p>
+                <p>4. Redeploy the app.</p>
+              </div>
             )}
           </div>
         ) : analysis ? (

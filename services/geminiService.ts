@@ -2,20 +2,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Creator, AnalysisResult, CaptionResult } from '../types';
 
 const getClient = () => {
-  // Support both process.env (Node/CRA) and import.meta.env (Vite/Vercel)
-  // Check all common prefixes to be robust against different deployment configs
+  // Check Environment Variables (Standard Vercel/Vite Config)
+  // We prioritize VITE_GEMINI_API_KEY as the standard for this app.
   const apiKey = 
-    (typeof process !== 'undefined' ? process.env.API_KEY || process.env.REACT_APP_API_KEY || process.env.NEXT_PUBLIC_API_KEY : undefined) ||
     (typeof import.meta !== 'undefined' && (import.meta as any).env ? (
+      (import.meta as any).env.VITE_GEMINI_API_KEY || 
       (import.meta as any).env.VITE_API_KEY || 
-      (import.meta as any).env.NEXT_PUBLIC_API_KEY || 
-      (import.meta as any).env.REACT_APP_API_KEY ||
-      (import.meta as any).env.API_KEY
+      (import.meta as any).env.NEXT_PUBLIC_API_KEY
+    ) : undefined) ||
+    (typeof process !== 'undefined' ? (
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.API_KEY || 
+      process.env.NEXT_PUBLIC_API_KEY
     ) : undefined);
               
   if (!apiKey) {
-    console.warn("API Key is missing. Checked: VITE_API_KEY, NEXT_PUBLIC_API_KEY, REACT_APP_API_KEY, API_KEY");
-    throw new Error("Missing API Key. Ensure 'VITE_API_KEY' is set in Vercel Env Variables.");
+    console.warn("API Key is missing. Checked: VITE_GEMINI_API_KEY, VITE_API_KEY");
+    throw new Error("Missing API Key. Please add 'VITE_GEMINI_API_KEY' to your Vercel Environment Variables.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -106,77 +109,59 @@ export const generateTrendCaption = async (
 
     const text = response.text || "";
     
-    const captionMatch = text.match(/Caption:\s*([\s\S]*?)(?=Hashtags:|$)/i);
-    const hashtagsMatch = text.match(/Hashtags:\s*([\s\S]*?)(?=Strategy:|$)/i);
-    const strategyMatch = text.match(/Strategy:\s*([\s\S]*)/i);
+    const captionMatch = text.match(/Caption:\s*(.+?)(?=\nHashtags:|$)/s);
+    const hashtagsMatch = text.match(/Hashtags:\s*(.+?)(?=\nStrategy:|$)/s);
+    const strategyMatch = text.match(/Strategy:\s*(.+?)$/s);
 
-    const caption = captionMatch ? captionMatch[1].trim() : "See generated text below.";
-    const hashtagsRaw = hashtagsMatch ? hashtagsMatch[1].trim() : "";
-    const hashtags = hashtagsRaw.split(/[\s,]+/).filter(tag => tag.startsWith('#'));
-    const strategy = strategyMatch ? strategyMatch[1].trim() : text;
+    let hashtags: string[] = [];
+    if (hashtagsMatch) {
+      hashtags = hashtagsMatch[1]
+        .split(/[, ]+/)
+        .filter(t => t.startsWith('#'))
+        .map(t => t.trim());
+    }
 
     return {
-      caption,
-      hashtags: hashtags.length > 0 ? hashtags : ['#fyp', '#trending'],
-      strategy
+      caption: captionMatch ? captionMatch[1].trim() : text,
+      hashtags: hashtags.length > 0 ? hashtags : ['#fyp', '#tiktok', `#${niche.replace(/\s+/g, '')}`],
+      strategy: strategyMatch ? strategyMatch[1].trim() : "AI generated based on current trends."
     };
+
   } catch (error: any) {
     console.error("Caption Error:", error);
     throw new Error(error.message || "Failed to generate caption");
   }
 };
 
-// Helper to extract TikTok Video ID
-const extractVideoId = (url: string): string | null => {
-  try {
-    const urlObj = new URL(url);
-    // Standard format: /@user/video/123456789
-    const pathParts = urlObj.pathname.split('/');
-    const videoIndex = pathParts.indexOf('video');
-    if (videoIndex !== -1 && videoIndex + 1 < pathParts.length) {
-      return pathParts[videoIndex + 1];
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-};
-
-// Improved Scraper Function
-export const scrapeVideoStats = async (url: string): Promise<{ views: number; likes: number; comments: number } | null> => {
+export const scrapeVideoStats = async (videoUrl: string): Promise<{ views: number, likes: number, comments: number } | null> => {
   try {
     const ai = getClient();
-    const videoId = extractVideoId(url);
     
+    // Extract ID to help search
+    // TikTok URLs often look like https://www.tiktok.com/@user/video/7285619234567
+    const idMatch = videoUrl.match(/\/video\/(\d+)/);
+    const videoId = idMatch ? idMatch[1] : '';
+    
+    // Broader search query to find the video across Google
     const searchQuery = videoId 
-      ? `site:tiktok.com "${videoId}" OR "${videoId}" tiktok views` 
-      : `"${url}" tiktok views likes`;
+      ? `site:tiktok.com inurl:${videoId} OR "tiktok video ${videoId}" stats`
+      : `site:tiktok.com "${videoUrl}" views likes`;
 
     const prompt = `
-      I need you to act as a precise data extractor.
-      Target Video URL: "${url}"
-      Search Query Context: ${searchQuery}
+      I need the public engagement stats for this TikTok video: "${videoUrl}".
       
-      Task:
-      1. Use Google Search to find the PUBLIC engagement metrics for this specific TikTok video.
-      2. Look specifically for numbers associated with "Views", "Likes", "Comments" in the search snippets.
-      3. Be careful with "K" (thousand), "M" (million), "B" (billion). Convert them to plain integers.
-         - Example: "1.2M" = 1200000
-         - Example: "50.5K" = 50500
+      1. Use Google Search to find the most recent view count, like count, and comment count for this specific video.
+      2. Look for search results that mention "K" (thousands) or "M" (millions) or "B" (billions).
+      3. Return ONLY a JSON object with integer numbers. Convert K/M/B to full numbers (e.g. 1.5M = 1500000).
       
-      CRITICAL OUTPUT RULE:
-      You must output a VALID JSON object. 
-      DO NOT WRAP IN MARKDOWN (no \`\`\`json).
-      Just return the raw JSON string.
-      
-      Required JSON Format:
+      Output format:
       {
-        "views": <number>,
-        "likes": <number>,
-        "comments": <number>
+        "views": 12345,
+        "likes": 123,
+        "comments": 12
       }
       
-      If absolutely no data is found for this specific video after searching, return 0 for the values.
+      If you absolutely cannot find any specific numbers for this video, return null.
     `;
 
     const response = await ai.models.generateContent({
@@ -184,35 +169,33 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "You are a JSON-only API. You extract numbers from text. You convert 'K', 'M' suffixes to numbers. Never output markdown code blocks.",
-        temperature: 0.1, 
+        systemInstruction: "You are a data extraction assistant. You MUST return valid JSON. Do not use Markdown code blocks.",
+        temperature: 0.1, // Very low temperature for factual extraction
       },
     });
 
-    const text = response.text;
-    if (!text) {
-      console.warn("Gemini returned empty text.");
-      return null;
-    }
-
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const jsonMatch = cleanText.match(/\{[\s\S]*?\}/);
+    let text = response.text || "";
     
-    if (!jsonMatch) {
-      console.warn("No JSON found in response:", text);
-      return null;
-    }
+    // 1. Strip Markdown Code Blocks if present (```json ... ```)
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    const data = JSON.parse(jsonMatch[0]);
+    // 2. Extract JSON using Regex
+    const jsonMatch = text.match(/\{[\s\S]*?\}/);
     
-    return {
-      views: typeof data.views === 'number' ? data.views : Number(data.views) || 0,
-      likes: typeof data.likes === 'number' ? data.likes : Number(data.likes) || 0,
-      comments: typeof data.comments === 'number' ? data.comments : Number(data.comments) || 0
-    };
+    if (jsonMatch) {
+      const json = JSON.parse(jsonMatch[0]);
+      // Ensure we have numbers
+      return {
+        views: Number(json.views) || 0,
+        likes: Number(json.likes) || 0,
+        comments: Number(json.comments) || 0
+      };
+    }
+    
+    return null;
 
   } catch (error) {
     console.error("Scraping error:", error);
-    return null;
+    return null; // Return null to trigger manual override in UI
   }
 };
