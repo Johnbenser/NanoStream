@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend 
 } from 'recharts';
-import { Loader2, Brain, TrendingUp, Users } from 'lucide-react';
+import { Loader2, Brain, TrendingUp, Users, RefreshCw } from 'lucide-react';
 import { Creator, AnalysisResult } from '../types';
 import { analyzeCreatorData } from '../services/geminiService';
 
@@ -18,21 +18,21 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchAnalysis = async () => {
-      if (creators.length === 0) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await analyzeCreatorData(creators);
-        setAnalysis(result);
-      } catch (err) {
-        setError("Failed to generate AI analysis.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchAnalysis = async () => {
+    if (creators.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await analyzeCreatorData(creators);
+      setAnalysis(result);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate AI analysis.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAnalysis();
   }, [creators]);
 
@@ -137,9 +137,16 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
           <Brain className="w-32 h-32" />
         </div>
         
-        <div className="flex items-center gap-2 mb-4">
-          <Brain className="w-6 h-6 text-purple-400" />
-          <h2 className="text-xl font-bold text-white">Gemini Data Insights</h2>
+        <div className="flex items-center justify-between mb-4 relative z-10">
+          <div className="flex items-center gap-2">
+            <Brain className="w-6 h-6 text-purple-400" />
+            <h2 className="text-xl font-bold text-white">Gemini Data Insights</h2>
+          </div>
+          {!loading && error && (
+            <button onClick={fetchAnalysis} className="text-sm text-purple-400 hover:text-white flex items-center gap-1">
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -148,7 +155,15 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
             <span className="ml-2 text-gray-400">Analyzing performance data...</span>
           </div>
         ) : error ? (
-          <div className="text-red-400 py-4">{error}</div>
+          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
+            <p className="text-red-400 font-medium mb-1">Analysis Failed</p>
+            <p className="text-gray-400 text-sm">{error}</p>
+            {error.includes("Key") && (
+              <p className="text-xs text-gray-500 mt-2 italic">
+                Tip: In Vercel, ensure your variable is named <strong>VITE_API_KEY</strong> (not just API_KEY).
+              </p>
+            )}
+          </div>
         ) : analysis ? (
           <div className="space-y-4 relative z-10">
             <div className="bg-gray-800/50 p-4 rounded-lg">
@@ -156,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
               <p className="text-gray-300 leading-relaxed">{analysis.summary}</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-gray-800/50 p-4 rounded-lg">
                 <h3 className="text-blue-300 font-semibold mb-2">Key Assumptions</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-300">
@@ -173,10 +188,18 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
                   )) || <li className="text-sm text-gray-500">No opportunities available</li>}
                 </ul>
               </div>
+              <div className="bg-gray-800/50 p-4 rounded-lg">
+                 <h3 className="text-pink-300 font-semibold mb-2">Audience Demographics</h3>
+                 <ul className="list-disc list-inside space-y-1 text-gray-300">
+                   {analysis.audienceDemographics?.map((item, idx) => (
+                     <li key={idx} className="text-sm">{item}</li>
+                   )) || <li className="text-sm text-gray-500">No data available</li>}
+                 </ul>
+              </div>
             </div>
           </div>
         ) : (
-          <p className="text-gray-400">No data available for analysis.</p>
+          <p className="text-gray-400 py-4">Add creators to the database to generate AI insights.</p>
         )}
       </div>
     </div>

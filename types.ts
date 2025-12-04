@@ -29,6 +29,7 @@ export interface AnalysisResult {
   assumptions: string[];
   topPerformers: string[];
   growthOpportunities: string[];
+  audienceDemographics: string[];
 }
 
 export interface CaptionResult {

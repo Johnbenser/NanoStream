@@ -19,9 +19,9 @@ const CaptionGenerator: React.FC = () => {
     try {
       const data = await generateTrendCaption(topic, niche, tone);
       setResult(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Failed to generate caption. Please check your API key.');
+      alert(error.message || 'Failed to generate caption. Please check your API key.');
     } finally {
       setLoading(false);
     }
