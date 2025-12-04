@@ -6,7 +6,7 @@ import { getUsers, addUser, deleteUser, getCurrentUser } from '../services/authS
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<UserType[]>([]);
   const [isAdding, setIsAdding] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '', role: 'EDITOR' as 'ADMIN' | 'EDITOR' });
+  const [formData, setFormData] = useState({ username: '', password: '', role: 'EDITOR' as 'ADMIN' | 'EDITOR' | 'CSR' });
   const [error, setError] = useState('');
   
   // Delete Modal State
@@ -122,9 +122,10 @@ const UserManagement: React.FC = () => {
                    <select 
                      className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                      value={formData.role}
-                     onChange={e => setFormData({...formData, role: e.target.value as 'ADMIN' | 'EDITOR'})}
+                     onChange={e => setFormData({...formData, role: e.target.value as 'ADMIN' | 'EDITOR' | 'CSR'})}
                    >
                      <option value="EDITOR">Editor (Standard)</option>
+                     <option value="CSR">CSR (Support)</option>
                      <option value="ADMIN">Admin (Full Access)</option>
                    </select>
                 </div>
@@ -169,6 +170,8 @@ const UserManagement: React.FC = () => {
                     <td className="px-6 py-4">
                       {user.role === 'ADMIN' ? (
                         <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded font-bold">ADMIN</span>
+                      ) : user.role === 'CSR' ? (
+                        <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-1 rounded font-medium">CSR</span>
                       ) : (
                         <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded font-medium">EDITOR</span>
                       )}

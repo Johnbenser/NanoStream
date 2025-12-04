@@ -33,6 +33,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
     ] : []),
   ];
 
+  const getRoleLabel = () => {
+    if (userRole === 'ADMIN') return 'Administrator';
+    if (userRole === 'CSR') return 'Customer Support';
+    return 'Editor';
+  };
+
+  const getAvatarGradient = () => {
+    if (userRole === 'ADMIN') return 'bg-gradient-to-tr from-purple-500 to-pink-500';
+    if (userRole === 'CSR') return 'bg-gradient-to-tr from-orange-400 to-yellow-500';
+    return 'bg-gradient-to-tr from-blue-500 to-cyan-500';
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-900">
       {/* Mobile Menu Overlay */}
@@ -76,12 +88,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
           <div className="p-4 border-t border-gray-700">
             <div className="bg-gray-900/50 rounded-lg p-3 mb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase ${userRole === 'ADMIN' ? 'bg-gradient-to-tr from-purple-500 to-pink-500' : 'bg-gradient-to-tr from-blue-500 to-cyan-500'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase ${getAvatarGradient()}`}>
                   {currentUser ? currentUser.substring(0, 2) : 'US'}
                 </div>
                 <div className="overflow-hidden">
                   <p className="text-sm font-medium text-white truncate">{currentUser || 'User'}</p>
-                  <p className="text-xs text-gray-500">{userRole === 'ADMIN' ? 'Administrator' : 'Editor'}</p>
+                  <p className="text-xs text-gray-500">{getRoleLabel()}</p>
                 </div>
               </div>
             </div>

@@ -49,7 +49,7 @@ export interface User {
   id: string;
   username: string;
   password: string; // stored plainly for this demo
-  role: 'ADMIN' | 'EDITOR';
+  role: 'ADMIN' | 'EDITOR' | 'CSR';
   lastLogin?: string;
 }
 

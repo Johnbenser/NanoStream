@@ -72,7 +72,7 @@ export const isAuthenticated = (): boolean => {
   return !!localStorage.getItem(USER_KEY);
 };
 
-export const getCurrentUserRole = (): 'ADMIN' | 'EDITOR' => {
+export const getCurrentUserRole = (): 'ADMIN' | 'EDITOR' | 'CSR' => {
   const username = getCurrentUser();
   if (!username) return 'EDITOR';
   const users = getUsers();

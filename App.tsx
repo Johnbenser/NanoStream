@@ -58,6 +58,7 @@ const App: React.FC = () => {
   }
 
   // Route Protection: If non-admin tries to access ADMIN views, redirect to Dashboard
+  // This logic is sufficient for CSR as well (CSR != ADMIN, so they are redirected)
   if (userRole !== 'ADMIN' && (activeView === ViewState.LOGS || activeView === ViewState.USERS)) {
     setActiveView(ViewState.DASHBOARD);
   }
