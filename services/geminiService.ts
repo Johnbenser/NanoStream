@@ -119,8 +119,18 @@ export const generateTrendCaption = async (
 
 // Helper to extract TikTok Video ID
 const extractVideoId = (url: string): string | null => {
-  const match = url.match(/\/video\/(\d+)/);
-  return match ? match[1] : null;
+  try {
+    const urlObj = new URL(url);
+    // Standard format: /@user/video/123456789
+    const pathParts = urlObj.pathname.split('/');
+    const videoIndex = pathParts.indexOf('video');
+    if (videoIndex !== -1 && videoIndex + 1 < pathParts.length) {
+      return pathParts[videoIndex + 1];
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
 };
 
 // Improved Scraper Function
@@ -128,10 +138,11 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
   const ai = getClient();
   const videoId = extractVideoId(url);
   
-  // Construct a smarter search query
+  // Broader search query to increase hit rate
+  // If we have an ID, use it. If not (e.g. vm.tiktok.com), use the full URL.
   const searchQuery = videoId 
-    ? `site:tiktok.com "${videoId}"` 
-    : `TikTok video "${url}" stats`;
+    ? `site:tiktok.com "${videoId}" OR "${videoId}" tiktok views` 
+    : `"${url}" tiktok views likes`;
 
   const prompt = `
     I need you to act as a precise data extractor.
@@ -146,7 +157,9 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
        - Example: "50.5K" = 50500
     
     CRITICAL OUTPUT RULE:
-    You must output a VALID JSON object. Do not include any markdown formatting.
+    You must output a VALID JSON object. 
+    DO NOT WRAP IN MARKDOWN (no \`\`\`json).
+    Just return the raw JSON string.
     
     Required JSON Format:
     {
@@ -155,7 +168,7 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
       "comments": <number>
     }
     
-    If absolutely no data is found for this specific video, return 0 for the values.
+    If absolutely no data is found for this specific video after searching, return 0 for the values.
   `;
 
   try {
@@ -164,7 +177,7 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "You are a JSON-only API. You extract numbers from text. You convert 'K', 'M' suffixes to numbers.",
+        systemInstruction: "You are a JSON-only API. You extract numbers from text. You convert 'K', 'M' suffixes to numbers. Never output markdown code blocks.",
         temperature: 0.1, 
       },
     });
@@ -175,8 +188,11 @@ export const scrapeVideoStats = async (url: string): Promise<{ views: number; li
       return null;
     }
 
+    // Clean up markdown if the model ignores instruction
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
     // Robust Parsing: Find the first JSON-like structure in the response
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    const jsonMatch = cleanText.match(/\{[\s\S]*?\}/);
     
     if (!jsonMatch) {
       console.warn("No JSON found in response:", text);
