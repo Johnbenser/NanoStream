@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend 
+  PieChart, Pie, Cell, Legend, ComposedChart, Line 
 } from 'recharts';
-import { Loader2, Brain, TrendingUp, Users, RefreshCw } from 'lucide-react';
+import { Loader2, Brain, TrendingUp, Users, RefreshCw, ShoppingBag, Filter, MessageCircle } from 'lucide-react';
 import { Creator, AnalysisResult } from '../types';
 import { analyzeCreatorData } from '../services/geminiService';
 
@@ -12,18 +13,35 @@ interface DashboardProps {
 }
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
+const PRODUCT_COLORS = {
+  'Maikalian': '#ec4899', // Pink for Shampoo/Beauty
+  'Xmas Curtain': '#ef4444', // Red for Xmas
+  'Tshirt': '#3b82f6', // Blue for Apparel
+  'Other': '#9ca3af'
+};
+
+const PRODUCT_CATEGORIES = ['All Products', 'Maikalian', 'Xmas Curtain', 'Tshirt', 'Other'];
 
 const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string>('All Products');
+
+  // Filter Creators based on selection
+  const filteredCreators = selectedProduct === 'All Products'
+    ? creators
+    : creators.filter(c => (c.productCategory || 'Other') === selectedProduct);
 
   const fetchAnalysis = async () => {
-    if (creators.length === 0) return;
+    if (filteredCreators.length === 0) {
+      setAnalysis(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const result = await analyzeCreatorData(creators);
+      const result = await analyzeCreatorData(filteredCreators);
       setAnalysis(result);
     } catch (err: any) {
       setError(err.message || "Failed to generate AI analysis.");
@@ -32,59 +50,117 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
     }
   };
 
+  // Re-run AI analysis when filter changes or data updates
   useEffect(() => {
-    fetchAnalysis();
-  }, [creators]);
+    const timer = setTimeout(() => {
+        fetchAnalysis();
+    }, 500); // Debounce slightly to prevent rapid firing if user switches quickly
+    return () => clearTimeout(timer);
+  }, [creators, selectedProduct]);
 
-  const nicheData = creators.reduce((acc, curr) => {
-    const existing = acc.find(item => item.name === curr.niche);
+  // --- DATA PROCESSING FOR CHARTS ---
+
+  // 1. Top Performance Data (Dynamic based on filter)
+  const performanceData = filteredCreators.map(c => ({
+    name: c.username || c.name.split(' ')[0],
+    views: c.avgViews,
+    likes: c.avgLikes,
+    comments: c.avgComments
+  })).sort((a, b) => b.views - a.views).slice(0, 10);
+
+  // 2. Product Distribution Data (For Pie Chart) - Only relevant when "All" is selected
+  const productData = creators.reduce((acc, curr) => {
+    const cat = curr.productCategory || 'Other';
+    const existing = acc.find(item => item.name === cat);
     if (existing) {
       existing.value += 1;
     } else {
-      acc.push({ name: curr.niche, value: 1 });
+      acc.push({ name: cat, value: 1 });
     }
     return acc;
   }, [] as { name: string; value: number }[]);
 
-  const performanceData = creators.map(c => ({
-    name: c.name.split(' ')[0], // First name for chart
-    views: c.avgViews,
-    likes: c.avgLikes
-  })).sort((a, b) => b.views - a.views).slice(0, 10);
+  // 3. Category Comparison Data (For Comments/Engagement Graph)
+  // This aggregates data to compare Maikalian vs Tshirt vs Curtain
+  const categoryComparisonData = PRODUCT_CATEGORIES.filter(c => c !== 'All Products').map(cat => {
+    const catCreators = creators.filter(c => (c.productCategory || 'Other') === cat);
+    const count = catCreators.length;
+    if (count === 0) return { name: cat, avgComments: 0, avgLikes: 0 };
+    
+    const totalComments = catCreators.reduce((sum, c) => sum + c.avgComments, 0);
+    const totalLikes = catCreators.reduce((sum, c) => sum + c.avgLikes, 0);
+    
+    return {
+      name: cat,
+      avgComments: Math.round(totalComments / count),
+      avgLikes: Math.round(totalLikes / count)
+    };
+  });
 
-  const totalViews = creators.reduce((sum, c) => sum + c.avgViews, 0);
-  const totalLikes = creators.reduce((sum, c) => sum + c.avgLikes, 0);
+  // Totals for metrics cards
+  const totalViews = filteredCreators.reduce((sum, c) => sum + c.avgViews, 0);
+  const totalLikes = filteredCreators.reduce((sum, c) => sum + c.avgLikes, 0);
+  const totalComments = filteredCreators.reduce((sum, c) => sum + c.avgComments, 0);
 
   return (
     <div className="space-y-6 animate-fade-in">
+      
+      {/* HEADER & FILTER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
+        <div>
+           <h2 className="text-xl font-bold text-white">
+             {selectedProduct === 'All Products' ? 'Global Overview' : `${selectedProduct} Performance`}
+           </h2>
+           <p className="text-gray-400 text-sm">
+             {selectedProduct === 'All Products' 
+               ? 'Showing data for all product lines.' 
+               : `Analyzing ${filteredCreators.length} videos specifically for ${selectedProduct}.`}
+           </p>
+        </div>
+        
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400 w-4 h-4" />
+          <select 
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            className="bg-gray-900 border border-purple-500/30 text-white pl-10 pr-4 py-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none cursor-pointer min-w-[200px]"
+          >
+            {PRODUCT_CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Tracked Views</h3>
+            <h3 className="text-gray-400 text-sm font-medium">Total Views</h3>
             <TrendingUp className="w-5 h-5 text-green-400" />
           </div>
           <p className="text-3xl font-bold text-white">{totalViews.toLocaleString()}</p>
         </div>
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Tracked Likes</h3>
+            <h3 className="text-gray-400 text-sm font-medium">Total Likes</h3>
             <TrendingUp className="w-5 h-5 text-pink-400" />
           </div>
           <p className="text-3xl font-bold text-white">{totalLikes.toLocaleString()}</p>
         </div>
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Active Creators</h3>
-            <Users className="w-5 h-5 text-blue-400" />
+            <h3 className="text-gray-400 text-sm font-medium">Total Comments</h3>
+            <MessageCircle className="w-5 h-5 text-blue-400" />
           </div>
-          <p className="text-3xl font-bold text-white">{creators.length}</p>
+          <p className="text-3xl font-bold text-white">{totalComments.toLocaleString()}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Performance Chart */}
+        {/* CHART 1: Top Creators (Filtered) */}
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4">Top Creator Performance</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Top Creator Performance ({selectedProduct})</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={performanceData}>
@@ -93,42 +169,63 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
                 <YAxis stroke="#9ca3af" />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                  cursor={{fill: '#374151'}}
                 />
-                <Bar dataKey="views" fill="#3b82f6" name="Avg Views" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="likes" fill="#ec4899" name="Avg Likes" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="views" fill="#3b82f6" name="Views" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="likes" fill="#ec4899" name="Likes" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Niche Distribution */}
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-          <h3 className="text-lg font-semibold text-white mb-4">Niche Distribution</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={nicheData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {nicheData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                   contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* CHART 2: Context Sensitive Chart */}
+        {selectedProduct === 'All Products' ? (
+           // IF ALL: Show Comparison of Products (Comments vs Likes)
+           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+               <ShoppingBag className="w-5 h-5 text-yellow-400" />
+               Category Engagement Comparison
+             </h3>
+             <div className="h-64">
+               <ResponsiveContainer width="100%" height="100%">
+                 <ComposedChart data={categoryComparisonData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                   <XAxis dataKey="name" stroke="#9ca3af" />
+                   <YAxis yAxisId="left" stroke="#9ca3af" label={{ value: 'Likes', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                   <YAxis yAxisId="right" orientation="right" stroke="#60a5fa" label={{ value: 'Comments', angle: 90, position: 'insideRight', fill: '#60a5fa' }} />
+                   <Tooltip 
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                   />
+                   <Legend />
+                   <Bar yAxisId="left" dataKey="avgLikes" fill="#ec4899" name="Avg Likes" radius={[4, 4, 0, 0]} barSize={40} />
+                   <Line yAxisId="right" type="monotone" dataKey="avgComments" stroke="#60a5fa" strokeWidth={3} name="Avg Comments" dot={{r: 4}} />
+                 </ComposedChart>
+               </ResponsiveContainer>
+             </div>
+             <p className="text-xs text-gray-400 mt-2 text-center">Comparing average engagement metrics across product lines.</p>
+           </div>
+        ) : (
+           // IF SPECIFIC PRODUCT: Show Comment Breakdown for specific creators
+           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-blue-400" />
+                Most Discussed {selectedProduct} Videos
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={performanceData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
+                    <XAxis type="number" stroke="#9ca3af" />
+                    <YAxis dataKey="name" type="category" stroke="#9ca3af" width={80} />
+                    <Tooltip 
+                       contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                    />
+                    <Bar dataKey="comments" fill="#60a5fa" name="Comments" radius={[0, 4, 4, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+           </div>
+        )}
       </div>
 
       {/* AI Analysis Section */}
@@ -140,7 +237,9 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
         <div className="flex items-center justify-between mb-4 relative z-10">
           <div className="flex items-center gap-2">
             <Brain className="w-6 h-6 text-purple-400" />
-            <h2 className="text-xl font-bold text-white">Gemini Data Insights</h2>
+            <h2 className="text-xl font-bold text-white">
+               {selectedProduct === 'All Products' ? 'Global AI Insights' : `${selectedProduct} AI Insights`}
+            </h2>
           </div>
           {!loading && error && (
             <button onClick={fetchAnalysis} className="text-sm text-purple-400 hover:text-white flex items-center gap-1">
@@ -152,7 +251,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-            <span className="ml-2 text-gray-400">Analyzing performance data...</span>
+            <span className="ml-2 text-gray-400">Analyzing {selectedProduct} data...</span>
           </div>
         ) : error ? (
           <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
@@ -192,8 +291,10 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
                   )) || <li className="text-sm text-gray-500">No opportunities available</li>}
                 </ul>
               </div>
-              <div className="bg-gray-800/50 p-4 rounded-lg">
-                 <h3 className="text-pink-300 font-semibold mb-2">Audience Demographics</h3>
+              <div className="bg-gray-800/50 p-4 rounded-lg border border-pink-500/20">
+                 <h3 className="text-pink-300 font-semibold mb-2">
+                   {selectedProduct === 'All Products' ? 'General Demographics' : `${selectedProduct} Audience`}
+                 </h3>
                  <ul className="list-disc list-inside space-y-1 text-gray-300">
                    {analysis.audienceDemographics?.map((item, idx) => (
                      <li key={idx} className="text-sm">{item}</li>
@@ -203,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
             </div>
           </div>
         ) : (
-          <p className="text-gray-400 py-4">Add creators to the database to generate AI insights.</p>
+          <p className="text-gray-400 py-4 text-center">Add creators to the database to generate AI insights.</p>
         )}
       </div>
     </div>

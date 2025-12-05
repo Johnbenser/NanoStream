@@ -1,3 +1,4 @@
+
 import React, { ReactNode } from 'react';
 import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock } from 'lucide-react';
 import { ViewState } from '../types';
@@ -61,11 +62,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-gray-700">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-              NanoStream
+          <div className="p-6 border-b border-gray-700 flex flex-col items-center text-center">
+            <div className="bg-white rounded-lg p-2 mb-3">
+              <img 
+                src="https://aistudiocdn.com/uploads/b7b99c27-38e5-47e1-8894-3e6601438fa7.png" 
+                alt="Global Media Live" 
+                className="h-10 w-auto object-contain"
+              />
+            </div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+              Global Media Live
             </h1>
-            <p className="text-xs text-gray-500 mt-1">Firebase Cloud Edition</p>
+            <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-semibold">FOR A.I CONTENT CAMPAIGN MONITORING</p>
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
@@ -115,7 +123,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="lg:hidden bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
-           <h1 className="text-xl font-bold text-white">NanoStream</h1>
+           <div className="flex items-center gap-3">
+             <div className="bg-white rounded p-1">
+               <img 
+                 src="https://aistudiocdn.com/uploads/b7b99c27-38e5-47e1-8894-3e6601438fa7.png" 
+                 alt="Global Media Live" 
+                 className="h-6 w-auto object-contain"
+               />
+             </div>
+             <h1 className="text-lg font-bold text-white">Global Media Live</h1>
+           </div>
            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-300">
              {isMobileMenuOpen ? <X /> : <Menu />}
            </button>

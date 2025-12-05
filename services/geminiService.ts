@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Creator, AnalysisResult, CaptionResult } from '../types';
 
@@ -27,6 +28,7 @@ export const analyzeCreatorData = async (creators: Creator[]): Promise<AnalysisR
   const dataset = JSON.stringify(creators.map(c => ({
     name: c.name,
     niche: c.niche,
+    product: c.productCategory || 'Other',
     views: c.avgViews,
     likes: c.avgLikes,
     engagement: c.avgViews > 0 ? ((c.avgLikes + c.avgComments) / c.avgViews).toFixed(3) : 0
@@ -34,9 +36,9 @@ export const analyzeCreatorData = async (creators: Creator[]): Promise<AnalysisR
 
   const prompt = `
     Analyze the following dataset of TikTok creators. 
-    Provide a summary of performance, list key assumptions explaining the data patterns (e.g., why certain niches are performing better), 
+    Provide a summary of performance, list key assumptions explaining the data patterns (e.g., why certain niches or products are performing better), 
     identify top performers, and suggest growth opportunities.
-    Also infer the likely Audience Demographics (Age, Gender, Interests) based on the niches.
+    Also infer the likely Audience Demographics (Age, Gender, Interests) based on the niches and product categories.
     
     Dataset: ${dataset}
   `;

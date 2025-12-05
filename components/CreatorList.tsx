@@ -1,9 +1,10 @@
+
 import React, { useState, useRef } from 'react';
 import { 
   Plus, Search, Mail, Phone, Video, MessageCircle, Heart, 
   Trash2, Edit2, LayoutGrid, Table as TableIcon,
   AlertTriangle, Link as LinkIcon, RefreshCw, ExternalLink, Save, X,
-  FileSpreadsheet, FileText, Cloud
+  FileSpreadsheet, FileText, Cloud, User as UserIcon, Tag
 } from 'lucide-react';
 import { Creator, CreatorFormData } from '../types';
 import { saveCreator, deleteCreator } from '../services/storageService';
@@ -11,9 +12,10 @@ import { scrapeVideoStats } from '../services/geminiService';
 
 interface CreatorListProps {
   creators: Creator[];
-  // onRefresh is deprecated since we use real-time listeners now, but keeping for interface comp
   onRefresh?: () => void; 
 }
+
+const PRODUCT_CATEGORIES = ['Maikalian', 'Xmas Curtain', 'Tshirt', 'Other'];
 
 const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,7 +32,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
 
   const [formData, setFormData] = useState<CreatorFormData>({
     name: '',
+    username: '',
     niche: '',
+    productCategory: 'Maikalian',
     email: '',
     phone: '',
     videoLink: '',
@@ -45,7 +49,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
       setEditingId(creator.id);
       setFormData({
         name: creator.name,
+        username: creator.username || '',
         niche: creator.niche,
+        productCategory: creator.productCategory || 'Maikalian',
         email: creator.email,
         phone: creator.phone,
         videoLink: creator.videoLink || '',
@@ -58,7 +64,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
       setEditingId(null);
       setFormData({
         name: '',
+        username: '',
         niche: '',
+        productCategory: 'Maikalian',
         email: '',
         phone: '',
         videoLink: '',
@@ -111,7 +119,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
         // Success: Auto-update
         const updatedData: CreatorFormData = {
           name: creator.name,
+          username: creator.username,
           niche: creator.niche,
+          productCategory: creator.productCategory,
           email: creator.email,
           phone: creator.phone,
           videoLink: creator.videoLink,
@@ -156,7 +166,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
 
     const updatedData: CreatorFormData = {
         name: creator.name,
+        username: creator.username,
         niche: creator.niche,
+        productCategory: creator.productCategory,
         email: creator.email,
         phone: creator.phone,
         videoLink: creator.videoLink,
@@ -185,7 +197,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
     const tableRows = creators.map((c, i) => `
       <tr style="background-color: ${i % 2 === 0 ? '#ffffff' : '#f9fafb'};">
         <td style="${styles.td}">${c.name}</td>
+        <td style="${styles.td}">${c.username || '-'}</td>
         <td style="${styles.td}">${c.niche}</td>
+        <td style="${styles.td}">${c.productCategory || 'Other'}</td>
         <td style="${styles.td}">${c.email}</td>
         <td style="${styles.td}">${c.phone}</td>
         <td style="${styles.td}">
@@ -210,8 +224,10 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
         <table style="${styles.table}">
           <thead>
             <tr>
-              <th style="${styles.th}">Creator Name</th>
+              <th style="${styles.th}">Full Name</th>
+              <th style="${styles.th}">Username</th>
               <th style="${styles.th}">Niche</th>
+              <th style="${styles.th}">Product Category</th>
               <th style="${styles.th}">Email</th>
               <th style="${styles.th}">Phone</th>
               <th style="${styles.th}">Latest Video</th>
@@ -240,12 +256,14 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Name', 'Niche', 'Email', 'Phone', 'Video Link', 'Avg Views', 'Avg Likes', 'Avg Comments', 'Videos Count'];
+    const headers = ['Name', 'Username', 'Niche', 'Product Category', 'Email', 'Phone', 'Video Link', 'Avg Views', 'Avg Likes', 'Avg Comments', 'Videos Count'];
     const csvContent = [
       headers.join(','),
       ...creators.map(c => [
         `"${c.name}"`,
+        `"${c.username || ''}"`,
         `"${c.niche}"`,
+        `"${c.productCategory || 'Other'}"`,
         `"${c.email}"`,
         `"${c.phone}"`,
         `"${c.videoLink || ''}"`,
@@ -265,7 +283,8 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
 
   const filteredCreators = creators.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.niche.toLowerCase().includes(searchTerm.toLowerCase())
+    c.niche.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.username && c.username.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -281,7 +300,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search creators or niches..."
+            placeholder="Search name, username, or niche..."
             className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-4 py-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -332,9 +351,19 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">{creator.name}</h3>
-                  <span className="inline-block bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded mt-1">
-                    {creator.niche}
-                  </span>
+                  {creator.username && (
+                    <div className="flex items-center gap-1 text-sm text-gray-400 mt-0.5">
+                      <UserIcon className="w-3 h-3" /> @{creator.username}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    <span className="inline-block bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
+                      {creator.niche}
+                    </span>
+                    <span className="inline-block bg-blue-900/50 text-blue-200 text-xs px-2 py-1 rounded border border-blue-500/20">
+                      {creator.productCategory || 'Other'}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleOpenModal(creator)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
@@ -399,7 +428,8 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
               <thead className="bg-gray-900 text-gray-200 uppercase font-medium border-b border-gray-700">
                 <tr>
                   <th className="px-6 py-4">Creator</th>
-                  <th className="px-6 py-4">Niche</th>
+                  <th className="px-6 py-4">Username</th>
+                  <th className="px-6 py-4">Product</th>
                   <th className="px-6 py-4">Link</th>
                   <th className="px-6 py-4 text-right">Views</th>
                   <th className="px-6 py-4 text-right">Likes</th>
@@ -411,7 +441,17 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                 {filteredCreators.map((creator) => (
                   <tr key={creator.id} className="hover:bg-gray-750/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-white">{creator.name}</td>
-                    <td className="px-6 py-4"><span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">{creator.niche}</span></td>
+                    <td className="px-6 py-4 text-gray-300">@{creator.username}</td>
+                    <td className="px-6 py-4">
+                       <span className={`text-xs px-2 py-1 rounded border ${
+                         creator.productCategory === 'Maikalian' ? 'bg-pink-900/30 text-pink-300 border-pink-500/30' :
+                         creator.productCategory === 'Xmas Curtain' ? 'bg-red-900/30 text-red-300 border-red-500/30' :
+                         creator.productCategory === 'Tshirt' ? 'bg-blue-900/30 text-blue-300 border-blue-500/30' :
+                         'bg-gray-700 text-gray-300 border-gray-600'
+                       }`}>
+                         {creator.productCategory || 'Other'}
+                       </span>
+                    </td>
                     <td className="px-6 py-4">
                       {creator.videoLink ? (
                         <a href={creator.videoLink} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 flex items-center gap-1">
@@ -460,9 +500,31 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                   <label className="text-xs font-medium text-gray-400 uppercase">Full Name</label>
                   <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
+                 <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-400 uppercase">Username (@)</label>
+                  <input required type="text" placeholder="tiktok_user" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                </div>
+              </div>
+
+               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Niche</label>
                   <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} />
+                </div>
+                 <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-400 uppercase">Product Category</label>
+                  <div className="relative">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                    <select 
+                      className="w-full bg-gray-900 border border-gray-700 text-white pl-9 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none"
+                      value={formData.productCategory}
+                      onChange={e => setFormData({...formData, productCategory: e.target.value})}
+                    >
+                      {PRODUCT_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
               

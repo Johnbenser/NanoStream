@@ -1,10 +1,13 @@
+
 export interface Creator {
   id: string;
   name: string;
+  username: string; // New field
   niche: string;
+  productCategory: string; // New field: 'Maikalian', 'Xmas Curtain', 'Tshirt', etc.
   email: string;
   phone: string;
-  videoLink?: string; // New field
+  videoLink?: string; 
   avgViews: number;
   avgLikes: number;
   avgComments: number;
@@ -14,10 +17,12 @@ export interface Creator {
 
 export interface CreatorFormData {
   name: string;
+  username: string; // New field
   niche: string;
+  productCategory: string; // New field
   email: string;
   phone: string;
-  videoLink?: string; // New field
+  videoLink?: string;
   avgViews: number;
   avgLikes: number;
   avgComments: number;

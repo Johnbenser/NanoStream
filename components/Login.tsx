@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Lock, User, ArrowRight, ShieldCheck, UserPlus, Key } from 'lucide-react';
+import { Lock, User, ArrowRight, UserPlus, Key } from 'lucide-react';
 import { login, register } from '../services/authService';
 
 interface LoginProps {
@@ -59,10 +60,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 overflow-hidden animate-fade-in">
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-8 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full backdrop-blur-sm mb-4">
-            <ShieldCheck className="w-8 h-8 text-white" />
+          <div className="flex justify-center mb-4">
+            <div className="bg-white rounded-xl p-2 shadow-lg">
+              <img 
+                src="https://aistudiocdn.com/uploads/b7b99c27-38e5-47e1-8894-3e6601438fa7.png" 
+                alt="Global Media Live Logo" 
+                className="h-16 w-auto object-contain"
+              />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">NanoStream Cloud</h1>
+          <h1 className="text-2xl font-bold text-white">Global Media Live</h1>
           <p className="text-purple-100 text-sm mt-2">Employee Workspace</p>
         </div>
         
