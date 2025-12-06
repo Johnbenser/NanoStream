@@ -1,32 +1,57 @@
 
+export interface VideoUpload {
+  id: string;
+  title: string; // New field for easy tracking
+  url: string;
+  product: string; // 'Maikalian', 'Xmas Curtain', 'Tshirt'
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  dateAdded: string;
+}
+
 export interface Creator {
   id: string;
   name: string;
-  username: string; // New field
+  username: string; 
   niche: string;
-  productCategory: string; // New field: 'Maikalian', 'Xmas Curtain', 'Tshirt', etc.
+  productCategory: string; // This acts as their "Primary Assigned Category"
   email: string;
   phone: string;
-  videoLink?: string; 
+  videoLink?: string; // Legacy field, kept for backward compat
+  uploads?: VideoUpload[]; // New field for detailed tracking
   avgViews: number;
   avgLikes: number;
   avgComments: number;
+  avgShares: number;
   videosCount: number;
   lastUpdated: string;
 }
 
 export interface CreatorFormData {
   name: string;
-  username: string; // New field
+  username: string;
   niche: string;
-  productCategory: string; // New field
+  productCategory: string;
   email: string;
   phone: string;
   videoLink?: string;
+  uploads?: VideoUpload[];
   avgViews: number;
   avgLikes: number;
   avgComments: number;
+  avgShares: number;
   videosCount: number;
+}
+
+export interface ResourceLink {
+  id: string;
+  title: string;
+  url: string;
+  description: string;
+  addedBy: string;
+  createdAt: string;
 }
 
 export interface AnalysisResult {
@@ -63,6 +88,7 @@ export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   CREATORS = 'CREATORS',
   TOOLS = 'TOOLS',
+  LINKS = 'LINKS',
   LOGS = 'LOGS',
   USERS = 'USERS',
 }

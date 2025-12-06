@@ -1,6 +1,6 @@
 
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock } from 'lucide-react';
+import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock, Link, Globe } from 'lucide-react';
 import { ViewState } from '../types';
 import { logout } from '../services/authService';
 import { addLog } from '../services/storageService';
@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
     { id: ViewState.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: ViewState.CREATORS, label: 'Creator Database', icon: Users },
     { id: ViewState.TOOLS, label: 'AI Tools', icon: Sparkles },
+    { id: ViewState.LINKS, label: 'Internal Links', icon: Link }, // New Item
     // Only Admin can see logs and user management
     ...(userRole === 'ADMIN' ? [
       { id: ViewState.LOGS, label: 'Activity Logs', icon: Shield },
@@ -63,12 +64,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
       `}>
         <div className="h-full flex flex-col">
           <div className="p-6 border-b border-gray-700 flex flex-col items-center text-center">
-            <div className="bg-white rounded-lg p-2 mb-3">
-              <img 
-                src="https://aistudiocdn.com/uploads/b7b99c27-38e5-47e1-8894-3e6601438fa7.png" 
-                alt="Global Media Live" 
-                className="h-10 w-auto object-contain"
-              />
+            <div className="bg-white rounded-lg p-2 mb-3 h-10 w-10 flex items-center justify-center">
+               <Globe className="w-6 h-6 text-purple-600" />
             </div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
               Global Media Live
@@ -125,11 +122,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
         <header className="lg:hidden bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
            <div className="flex items-center gap-3">
              <div className="bg-white rounded p-1">
-               <img 
-                 src="https://aistudiocdn.com/uploads/b7b99c27-38e5-47e1-8894-3e6601438fa7.png" 
-                 alt="Global Media Live" 
-                 className="h-6 w-auto object-contain"
-               />
+               <Globe className="w-6 h-6 text-purple-600" />
              </div>
              <h1 className="text-lg font-bold text-white">Global Media Live</h1>
            </div>

@@ -31,7 +31,8 @@ export const analyzeCreatorData = async (creators: Creator[]): Promise<AnalysisR
     product: c.productCategory || 'Other',
     views: c.avgViews,
     likes: c.avgLikes,
-    engagement: c.avgViews > 0 ? ((c.avgLikes + c.avgComments) / c.avgViews).toFixed(3) : 0
+    shares: c.avgShares || 0,
+    engagement: c.avgViews > 0 ? ((c.avgLikes + c.avgComments + (c.avgShares || 0)) / c.avgViews).toFixed(3) : 0
   })));
 
   const prompt = `
@@ -135,32 +136,32 @@ export const generateTrendCaption = async (
   }
 };
 
-export const scrapeVideoStats = async (videoUrl: string): Promise<{ views: number, likes: number, comments: number } | null> => {
+export const scrapeVideoStats = async (videoUrl: string): Promise<{ views: number, likes: number, comments: number, shares: number } | null> => {
   try {
     const ai = getClient();
     
     // Extract ID to help search
-    // TikTok URLs often look like https://www.tiktok.com/@user/video/7285619234567
     const idMatch = videoUrl.match(/\/video\/(\d+)/);
     const videoId = idMatch ? idMatch[1] : '';
     
     // Broader search query to find the video across Google
     const searchQuery = videoId 
       ? `site:tiktok.com inurl:${videoId} OR "tiktok video ${videoId}" stats`
-      : `site:tiktok.com "${videoUrl}" views likes`;
+      : `site:tiktok.com "${videoUrl}" views likes shares`;
 
     const prompt = `
       I need the public engagement stats for this TikTok video: "${videoUrl}".
       
-      1. Use Google Search to find the most recent view count, like count, and comment count for this specific video.
+      1. Use Google Search to find the most recent view count, like count, comment count AND SHARE count for this specific video.
       2. Look for search results that mention "K" (thousands) or "M" (millions) or "B" (billions).
-      3. Return ONLY a JSON object with integer numbers. Convert K/M/B to full numbers (e.g. 1.5M = 1500000).
+      3. Return ONLY a JSON object with integer numbers. Convert K/M/B to full numbers.
       
       Output format:
       {
         "views": 12345,
         "likes": 123,
-        "comments": 12
+        "comments": 12,
+        "shares": 50
       }
       
       If you absolutely cannot find any specific numbers for this video, return null.
@@ -190,7 +191,8 @@ export const scrapeVideoStats = async (videoUrl: string): Promise<{ views: numbe
       return {
         views: Number(json.views) || 0,
         likes: Number(json.likes) || 0,
-        comments: Number(json.comments) || 0
+        comments: Number(json.comments) || 0,
+        shares: Number(json.shares) || 0
       };
     }
     

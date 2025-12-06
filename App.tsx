@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -8,6 +9,7 @@ import CreatorList from './components/CreatorList';
 import CaptionGenerator from './components/CaptionGenerator';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
+import ResourceLinks from './components/ResourceLinks';
 import Login from './components/Login';
 import { ViewState, Creator } from './types';
 import { subscribeToCreators } from './services/storageService';
@@ -150,6 +152,16 @@ const App: React.FC = () => {
             <p className="text-gray-400 mt-2">Generate optimized content strategies.</p>
           </div>
           <CaptionGenerator />
+        </>
+      )}
+
+      {activeView === ViewState.LINKS && (
+         <>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-white">Internal Links</h2>
+            <p className="text-gray-400 mt-2">Company resources and quick access portals.</p>
+          </div>
+          <ResourceLinks />
         </>
       )}
 

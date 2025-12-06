@@ -1,3 +1,4 @@
+
 import { 
   collection, 
   addDoc, 
@@ -10,10 +11,11 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { Creator, CreatorFormData, LogEntry } from '../types';
+import { Creator, CreatorFormData, LogEntry, ResourceLink } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
 const LOGS_COLLECTION = 'logs';
+const RESOURCES_COLLECTION = 'resources';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -49,6 +51,24 @@ export const subscribeToLogs = (
     onData(logs);
   }, (error) => {
     console.error("Firebase Logs Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+export const subscribeToResources = (
+  onData: (resources: ResourceLink[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, RESOURCES_COLLECTION), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const resources = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ResourceLink[];
+    onData(resources);
+  }, (error) => {
+    console.error("Firebase Resources Sync Error:", error);
     if (onError) onError(error);
   });
 };
@@ -100,6 +120,42 @@ export const deleteCreator = async (id: string, name: string): Promise<void> => 
     addLog('DELETE', `Creator: ${name}`);
   } catch (e) {
     console.error("Error deleting creator:", e);
+    throw e;
+  }
+};
+
+export const saveResource = async (data: Omit<ResourceLink, 'id' | 'createdAt' | 'addedBy'>, id?: string): Promise<void> => {
+  try {
+    const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
+    
+    if (id) {
+      // Update existing resource
+      const resourceRef = doc(db, RESOURCES_COLLECTION, id);
+      await updateDoc(resourceRef, {
+        ...data
+      });
+      addLog('UPDATE', `Resource Link: ${data.title}`);
+    } else {
+      // Create new resource
+      await addDoc(collection(db, RESOURCES_COLLECTION), {
+        ...data,
+        addedBy: user.split('@')[0], // Use username part
+        createdAt: new Date().toISOString()
+      });
+      addLog('CREATE', `Resource Link: ${data.title}`);
+    }
+  } catch (e) {
+    console.error("Error saving resource:", e);
+    throw e;
+  }
+};
+
+export const deleteResource = async (id: string, title: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, RESOURCES_COLLECTION, id));
+    addLog('DELETE', `Resource Link: ${title}`);
+  } catch (e) {
+    console.error("Error deleting resource:", e);
     throw e;
   }
 };
