@@ -3,19 +3,20 @@ import React, { useState } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, LayoutGrid, Table as TableIcon,
   AlertTriangle, ExternalLink, Save, X, FileText, 
-  Cloud, User as UserIcon, Tag, PlayCircle, Share2, Heart, Video, Type, Clipboard
+  Cloud, User as UserIcon, Tag, PlayCircle, Share2, Heart, Video, Type, Clipboard, Calendar, FileSpreadsheet
 } from 'lucide-react';
 import { Creator, CreatorFormData, VideoUpload } from '../types';
 import { saveCreator, deleteCreator } from '../services/storageService';
 
 interface CreatorListProps {
   creators: Creator[];
-  onRefresh?: () => void; 
+  onRefresh?: () => void;
+  currentUser?: string;
 }
 
 const PRODUCT_CATEGORIES = ['Maikalian', 'Xmas Curtain', 'Tshirt', 'Other'];
 
-const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
+const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
   // Main View State
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +35,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   // Video Library / Manager State
   const [libraryCreator, setLibraryCreator] = useState<Creator | null>(null);
   const [videoFormData, setVideoFormData] = useState<Partial<VideoUpload>>({
-    title: '', url: '', product: 'Maikalian', views: 0, likes: 0, comments: 0, shares: 0
+    title: '', url: '', product: 'Maikalian', views: 0, likes: 0, comments: 0, shares: 0, dateAdded: new Date().toISOString().split('T')[0]
   });
   const [isVideoFormOpen, setIsVideoFormOpen] = useState(false);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
@@ -100,12 +101,17 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   const openVideoForm = (video?: VideoUpload) => {
     if (video) {
         setEditingVideoId(video.id);
-        setVideoFormData({ ...video });
+        setVideoFormData({ 
+            ...video,
+            // Format for date input (YYYY-MM-DD)
+            dateAdded: video.dateAdded ? video.dateAdded.split('T')[0] : new Date().toISOString().split('T')[0]
+        });
     } else {
         setEditingVideoId(null);
         setVideoFormData({ 
             title: '', url: '', product: 'Maikalian', 
-            views: 0, likes: 0, comments: 0, shares: 0 
+            views: 0, likes: 0, comments: 0, shares: 0,
+            dateAdded: new Date().toISOString().split('T')[0]
         });
     }
     setIsVideoFormOpen(true);
@@ -117,6 +123,11 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
 
     // Create a copy of existing uploads
     let updatedUploads = [...(libraryCreator.uploads || [])];
+    
+    // Prepare proper ISO string for date
+    const finalDate = videoFormData.dateAdded 
+        ? new Date(videoFormData.dateAdded).toISOString() 
+        : new Date().toISOString();
 
     if (editingVideoId) {
         // Update existing
@@ -124,14 +135,14 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
             u.id === editingVideoId ? { 
                 ...u, 
                 ...videoFormData as VideoUpload,
-                // Keep original date or update? Let's keep original ID/date
+                dateAdded: finalDate
             } : u
         );
     } else {
         // Add new
         const newVideo: VideoUpload = {
             id: Date.now().toString(),
-            dateAdded: new Date().toISOString(),
+            dateAdded: finalDate,
             title: videoFormData.title || 'Untitled Video',
             url: videoFormData.url || '',
             product: videoFormData.product || 'Maikalian',
@@ -208,7 +219,159 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
   };
 
   // --- EXPORT LOGIC ---
+  const handleExportExcel = () => {
+    const username = currentUser ? currentUser.split('@')[0] : 'Unknown User';
+    const generateDate = new Date().toLocaleString();
+    const dateStr = new Date().toISOString().split('T')[0];
+
+    // CSS Styles for the Excel file
+    const tableStyle = `
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #ffffff; }
+        .header-container {
+            padding: 20px 0;
+            text-align: left;
+            border-bottom: 3px solid #6d28d9; /* Purple divider */
+            margin-bottom: 20px;
+        }
+        .brand-text {
+            color: #4c1d95; /* Deep Brand Purple */
+            font-size: 28px;
+            font-weight: 900;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        .campaign-text {
+            color: #000000; /* SOLID BLACK */
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .meta-data {
+            color: #374151; /* Dark Gray */
+            font-size: 11px;
+            margin-top: 15px;
+            font-family: monospace;
+        }
+        table { border-collapse: collapse; width: 100%; border: 1px solid #e5e7eb; }
+        th {
+            background-color: #4c1d95; /* Deep Purple Header */
+            color: white;
+            border: 1px solid #312e81;
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: middle;
+            color: #1f2937;
+            font-size: 11px;
+        }
+        tr:nth-child(even) { background-color: #f9fafb; }
+        .num { text-align: right; font-family: 'Courier New', monospace; font-weight: bold; }
+        .product-col { background-color: #f5f3ff; color: #4c1d95; font-weight: bold; }
+      </style>
+    `;
+
+    const tableRows = creators.map(c => {
+      // Calculate breakdown stats per specific product
+      let maikalianViews = 0;
+      let curtainViews = 0;
+      let tshirtViews = 0;
+
+      if (c.uploads) {
+        c.uploads.forEach(u => {
+            if (u.product === 'Maikalian') maikalianViews += u.views;
+            if (u.product === 'Xmas Curtain') curtainViews += u.views;
+            if (u.product === 'Tshirt') tshirtViews += u.views;
+        });
+      }
+
+      return `
+      <tr>
+        <td style="font-weight:bold; font-size: 12px;">${c.name}</td>
+        <td>${c.username || '-'}</td>
+        <td>${c.niche}</td>
+        <td class="num product-col">${maikalianViews.toLocaleString()}</td>
+        <td class="num product-col">${curtainViews.toLocaleString()}</td>
+        <td class="num product-col">${tshirtViews.toLocaleString()}</td>
+        <td class="num">${c.avgLikes.toLocaleString()}</td>
+        <td class="num">${c.avgViews.toLocaleString()}</td>
+        <td class="num">${c.videosCount}</td>
+        <td>${c.email}</td>
+        <td>${c.phone}</td>
+      </tr>
+    `}).join('');
+
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+        <x:ExcelWorkbook>
+        <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+        <x:Name>Creator Analysis</x:Name>
+        <x:WorksheetOptions>
+        <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+        </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        ${tableStyle}
+      </head>
+      <body>
+        <div class="header-container">
+          <div class="brand-text">Global Media Live</div>
+          <div class="campaign-text">A.I Content Campaign Monitoring</div>
+          <div class="meta-data">
+             Generated by: ${username} | Date: ${generateDate}
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Niche</th>
+              <th>Maikalian Views</th>
+              <th>Xmas Curtain Views</th>
+              <th>Tshirt Views</th>
+              <th>Total Likes</th>
+              <th>Total Views</th>
+              <th>Uploaded</th>
+              <th>Email</th>
+              <th>Phone</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `GML_Creator_Report_${dateStr}.xls`;
+    link.click();
+  };
+
   const handleExportCSV = () => {
+    // Basic CSV Backup - retaining detailed export logic just for Excel as requested
     const headers = ['Name', 'Username', 'Niche', 'Category', 'Total Views', 'Total Likes', 'Total Comments', 'Total Shares', 'Total Videos'];
     const csvContent = [
       headers.join(','),
@@ -268,6 +431,10 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
 
           <div className="w-px h-8 bg-gray-700 mx-2 hidden xl:block"></div>
           
+          <button onClick={handleExportExcel} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-green-900/20">
+            <FileSpreadsheet className="w-4 h-4" /> Report
+          </button>
+
           <button onClick={handleExportCSV} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
             <FileText className="w-4 h-4" /> CSV
           </button>
@@ -448,7 +615,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
       {/* VIDEO LIBRARY MODAL */}
       {libraryCreator && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-gray-800 rounded-xl w-full max-w-4xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+           <div className="bg-gray-800 rounded-xl w-full max-w-5xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                {/* Header */}
                <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                   <div>
@@ -478,19 +645,35 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                         </h4>
                         <form onSubmit={saveVideo} className="space-y-4">
                              
-                             {/* Video Title - New Input */}
-                             <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-400 uppercase">Video Name / Title</label>
-                                <div className="relative">
-                                    <Type className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                                    <input 
-                                        required 
-                                        type="text" 
-                                        placeholder="e.g. Maikalian Shampoo Review v1" 
-                                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg pl-9 pr-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                        value={videoFormData.title}
-                                        onChange={e => setVideoFormData({...videoFormData, title: e.target.value})}
-                                    />
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Video Title */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-gray-400 uppercase">Video Name / Title</label>
+                                    <div className="relative">
+                                        <Type className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                                        <input 
+                                            required 
+                                            type="text" 
+                                            placeholder="e.g. Maikalian Shampoo Review v1" 
+                                            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg pl-9 pr-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                            value={videoFormData.title}
+                                            onChange={e => setVideoFormData({...videoFormData, title: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                                {/* Upload Date */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-gray-400 uppercase">Upload Date</label>
+                                    <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                                        <input 
+                                            required 
+                                            type="date" 
+                                            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg pl-9 pr-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none [color-scheme:dark]"
+                                            value={videoFormData.dateAdded}
+                                            onChange={e => setVideoFormData({...videoFormData, dateAdded: e.target.value})}
+                                        />
+                                    </div>
                                 </div>
                              </div>
 
@@ -559,6 +742,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                            <tr>
                               <th className="px-6 py-3">Video Title</th>
                               <th className="px-6 py-3">Product</th>
+                              <th className="px-6 py-3">Upload Date</th>
                               <th className="px-6 py-3 text-right">Views</th>
                               <th className="px-6 py-3 text-right">Likes</th>
                               <th className="px-6 py-3 text-right">Shares</th>
@@ -580,6 +764,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                                     }`}>
                                        {upload.product}
                                     </span>
+                                 </td>
+                                 <td className="px-6 py-3 text-gray-300">
+                                     {upload.dateAdded ? new Date(upload.dateAdded).toLocaleDateString() : '-'}
                                  </td>
                                  <td className="px-6 py-3 text-right text-gray-300 font-mono">{upload.views.toLocaleString()}</td>
                                  <td className="px-6 py-3 text-right text-gray-300 font-mono">{upload.likes.toLocaleString()}</td>
@@ -677,21 +864,20 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators }) => {
                 <AlertTriangle className="w-6 h-6 text-red-400" />
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Delete Creator?</h3>
-              <p className="text-gray-400 text-sm mb-6">
-                Are you sure you want to delete this creator? This action cannot be undone.
-              </p>
+              <p className="text-gray-400 text-sm mb-6">Are you sure you want to delete <strong>{deleteName}</strong>? This action cannot be undone.</p>
+              
               <div className="flex gap-3 justify-center">
                 <button 
                   onClick={() => { setDeleteId(null); setDeleteName(null); }}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors font-medium"
+                  className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={confirmDelete}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium shadow-lg shadow-red-900/20"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-lg shadow-red-900/20 transition-all"
                 >
-                  Yes, Delete
+                  Delete
                 </button>
               </div>
            </div>

@@ -141,7 +141,7 @@ const App: React.FC = () => {
             <h2 className="text-3xl font-bold text-white">Creator Database</h2>
             <p className="text-gray-400 mt-2">Live-synced database of all creators.</p>
           </div>
-          <CreatorList creators={creators} />
+          <CreatorList creators={creators} currentUser={user.email} />
         </>
       )}
 

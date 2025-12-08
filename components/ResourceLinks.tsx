@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Plus, Trash2, Edit2, Link as LinkIcon, Globe, X } from 'lucide-react';
+import { ExternalLink, Plus, Trash2, Edit2, Link as LinkIcon, Globe, X, Calendar, User } from 'lucide-react';
 import { ResourceLink } from '../types';
 import { subscribeToResources, saveResource, deleteResource } from '../services/storageService';
 
@@ -68,73 +68,102 @@ const ResourceLinks: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-       {/* Toolbar */}
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-800 p-6 rounded-xl border border-gray-700">
+    <div className="space-y-6 animate-fade-in max-w-5xl">
+       {/* Header / Toolbar */}
+       <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col md:flex-row justify-between items-start gap-4">
          <div>
            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-             <LinkIcon className="w-6 h-6 text-blue-400" />
-             Internal Links & Resources
+             <LinkIcon className="w-5 h-5 text-blue-400" />
+             Internal Links Directory
            </h2>
            <p className="text-gray-400 text-sm mt-1">
-             Quick access to company websites, tools, and documentation.
+             Access company portals, documentation, and external resources.
            </p>
          </div>
          <button 
            onClick={handleOpenModal}
-           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-900/20"
+           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-900/20 text-sm"
          >
-           <Plus className="w-4 h-4" /> Add Link
+           <Plus className="w-4 h-4" /> Add New Link
          </button>
        </div>
 
-       {/* Grid */}
+       {/* List View */}
        {links.length === 0 ? (
-         <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed">
-           <Globe className="w-12 h-12 mx-auto mb-3 opacity-20" />
-           <p>No links added yet.</p>
+         <div className="p-8 text-left text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed flex items-start gap-4">
+           <div className="bg-gray-800 p-3 rounded-lg">
+             <Globe className="w-6 h-6 opacity-30" />
+           </div>
+           <div>
+             <p className="text-white font-medium">No links found</p>
+             <p className="text-sm">Get started by adding your first resource link above.</p>
+           </div>
          </div>
        ) : (
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+         <div className="flex flex-col gap-3">
            {links.map((link) => (
-             <div key={link.id} className="bg-gray-800 rounded-xl border border-gray-700 p-6 hover:border-blue-500/50 transition-colors group flex flex-col h-full">
-               <div className="flex justify-between items-start mb-4">
-                 <div className="bg-blue-500/10 p-2.5 rounded-lg">
-                   <Globe className="w-6 h-6 text-blue-400" />
+             <div key={link.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4 hover:border-blue-500/30 transition-all group flex flex-col md:flex-row gap-4 items-start">
+               
+               {/* Icon */}
+               <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 shrink-0">
+                 <Globe className="w-5 h-5 text-blue-400" />
+               </div>
+
+               {/* Content */}
+               <div className="flex-1 min-w-0">
+                 <div className="flex items-center gap-3 mb-1">
+                   <h3 className="text-base font-bold text-white truncate">{link.title}</h3>
+                   <span className="hidden md:inline text-gray-600">•</span>
+                   <a 
+                     href={link.url} 
+                     target="_blank" 
+                     rel="noopener noreferrer" 
+                     className="text-xs text-blue-400 hover:underline flex items-center gap-1 bg-blue-900/10 px-2 py-0.5 rounded border border-blue-500/10"
+                   >
+                     {link.url} <ExternalLink className="w-3 h-3" />
+                   </a>
                  </div>
-                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => handleEdit(link)}
-                      className="text-gray-500 hover:text-white p-1"
-                      title="Edit Link"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(link.id, link.title)}
-                      className="text-gray-500 hover:text-red-400 p-1"
-                      title="Delete Link"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                 
+                 <p className="text-gray-400 text-sm leading-relaxed mb-2">
+                   {link.description}
+                 </p>
+
+                 <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                        <User className="w-3 h-3" /> {link.addedBy}
+                    </div>
+                    {link.createdAt && (
+                        <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {new Date(link.createdAt).toLocaleDateString()}
+                        </div>
+                    )}
                  </div>
                </div>
-               
-               <h3 className="text-lg font-bold text-white mb-2">{link.title}</h3>
-               <p className="text-gray-400 text-sm mb-6 flex-1 line-clamp-3">
-                 {link.description}
-               </p>
-               
-               <div className="mt-auto pt-4 border-t border-gray-700 flex items-center justify-between">
-                 <span className="text-xs text-gray-500">Added by {link.addedBy}</span>
-                 <a 
-                   href={link.url} 
-                   target="_blank" 
-                   rel="noopener noreferrer"
-                   className="flex items-center gap-1 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
-                 >
-                   Open <ExternalLink className="w-3 h-3" />
-                 </a>
+
+               {/* Actions */}
+               <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity self-start md:self-center">
+                  <button 
+                    onClick={() => handleEdit(link)}
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                    title="Edit Link"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(link.id, link.title)}
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
+                    title="Delete Link"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <a 
+                     href={link.url} 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     className="ml-2 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                  >
+                    Visit
+                  </a>
                </div>
              </div>
            ))}
@@ -143,31 +172,34 @@ const ResourceLinks: React.FC = () => {
 
        {/* Modal */}
        {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
           <div className="bg-gray-800 rounded-xl w-full max-w-md border border-gray-700 shadow-2xl">
-            <div className="p-5 border-b border-gray-700 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-white">{editingId ? 'Edit Link' : 'Add New Link'}</h2>
+            <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-900/50 rounded-t-xl">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  {editingId ? <Edit2 className="w-4 h-4 text-purple-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
+                  {editingId ? 'Edit Resource' : 'Add New Resource'}
+              </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-400 uppercase">Title</label>
+                <label className="text-xs font-medium text-gray-400 uppercase">Resource Title</label>
                 <input 
                   required 
                   type="text" 
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. Company Portal"
+                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-600"
+                  placeholder="e.g. Employee Handbook"
                   value={formData.title} 
                   onChange={e => setFormData({...formData, title: e.target.value})} 
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-400 uppercase">URL</label>
+                <label className="text-xs font-medium text-gray-400 uppercase">Direct URL</label>
                 <input 
                   required 
                   type="text" 
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="https://example.com"
+                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-600"
+                  placeholder="https://..."
                   value={formData.url} 
                   onChange={e => setFormData({...formData, url: e.target.value})} 
                 />
@@ -177,19 +209,21 @@ const ResourceLinks: React.FC = () => {
                 <textarea 
                   required 
                   rows={3}
-                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
-                  placeholder="Briefly describe this resource..."
+                  className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none placeholder-gray-600"
+                  placeholder="Briefly describe what this link is for..."
                   value={formData.description} 
                   onChange={e => setFormData({...formData, description: e.target.value})} 
                 />
               </div>
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium shadow-lg shadow-blue-900/20 mt-4"
-              >
-                {loading ? 'Saving...' : (editingId ? 'Update Link' : 'Add Link')}
-              </button>
+              <div className="pt-2">
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium shadow-lg shadow-blue-900/20"
+                >
+                    {loading ? 'Saving...' : 'Save Resource Link'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
