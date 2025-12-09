@@ -10,6 +10,7 @@ import CaptionGenerator from './components/CaptionGenerator';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
 import ResourceLinks from './components/ResourceLinks';
+import BrandManager from './components/BrandManager'; // New Import
 import Login from './components/Login';
 import { ViewState, Creator } from './types';
 import { subscribeToCreators } from './services/storageService';
@@ -23,11 +24,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
+  // 1. Auth Listener Effect
   useEffect(() => {
-    // 1. Auth Listener
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser);
         // Fetch Role
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
@@ -40,33 +40,40 @@ const App: React.FC = () => {
           console.error("Error fetching role", e);
           setUserRole('EDITOR');
         }
+        setUser(firebaseUser);
       } else {
         setUser(null);
+        setCreators([]); // Clear data on logout
       }
       setLoading(false);
     });
 
-    // 2. Database Listener (Real-time Sync)
+    return () => unsubscribeAuth();
+  }, []);
+
+  // 2. Database Listener Effect (Dependent on User)
+  useEffect(() => {
+    // Only subscribe to DB if user is logged in
+    if (!user) return;
+
     const unsubscribeDb = subscribeToCreators(
       (data) => {
         setCreators(data);
         setDbError(null);
       },
       (error) => {
+        console.error("DB Error:", error);
         // Check for specific "API Disabled" error from Firebase
         if (error.message && (error.message.includes('Cloud Firestore API') || error.code === 'permission-denied')) {
-          setDbError("Setup Required: The Firestore Database API is not enabled for this project.");
+          setDbError("Database Access Error: Missing permissions or API disabled.");
         } else {
           setDbError("Database Connection Failed. Check your internet connection.");
         }
       }
     );
 
-    return () => {
-      unsubscribeAuth();
-      unsubscribeDb();
-    };
-  }, []);
+    return () => unsubscribeDb();
+  }, [user]); // Re-run this effect when 'user' changes
 
   const handleLoginSuccess = () => {
     // Auth listener handles state, this just helps UI transition if needed
@@ -81,7 +88,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-        <p className="text-gray-400 animate-pulse">Connecting to Firebase...</p>
+        <p className="text-gray-400 animate-pulse">Connecting to Global Media Live...</p>
       </div>
     );
   }
@@ -110,17 +117,18 @@ const App: React.FC = () => {
           <div>
             <h3 className="text-red-400 font-bold">Database Connection Error</h3>
             <p className="text-gray-300 text-sm mt-1">{dbError}</p>
-            {dbError.includes("Setup Required") && (
-               <div className="mt-3 text-sm text-gray-400">
-                  <p>To fix this:</p>
-                  <ol className="list-decimal ml-5 mt-1 space-y-1">
-                    <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline inline-flex items-center">Firebase Console <ExternalLink className="w-3 h-3 ml-1"/></a>.</li>
-                    <li>Select project <strong>nano-stream-d1d91</strong>.</li>
-                    <li>Click <strong>Firestore Database</strong> in the left menu.</li>
-                    <li>Click <strong>Create Database</strong> (Select Test Mode).</li>
-                  </ol>
-               </div>
-            )}
+            <div className="mt-3 text-sm text-gray-400">
+                <p className="font-semibold text-white mb-1">How to fix:</p>
+                <ol className="list-decimal ml-5 space-y-1">
+                  <li>Go to <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline inline-flex items-center">Firebase Console <ExternalLink className="w-3 h-3 ml-1"/></a>.</li>
+                  <li>Click <strong>Firestore Database</strong> {'>'} <strong>Rules</strong>.</li>
+                  <li>Ensure rules allow read/write for authenticated users:
+                    <pre className="bg-black/30 p-2 rounded mt-1 text-xs font-mono text-green-300">
+                      allow read, write: if request.auth != null;
+                    </pre>
+                  </li>
+                </ol>
+            </div>
           </div>
         </div>
       )}
@@ -142,6 +150,16 @@ const App: React.FC = () => {
             <p className="text-gray-400 mt-2">Live-synced database of all creators.</p>
           </div>
           <CreatorList creators={creators} currentUser={user.email} />
+        </>
+      )}
+
+      {activeView === ViewState.BRANDS && (
+         <>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-white">Brands</h2>
+            <p className="text-gray-400 mt-2">Product inventory and shop links.</p>
+          </div>
+          <BrandManager />
         </>
       )}
 

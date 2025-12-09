@@ -10,12 +10,14 @@ import {
   orderBy,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db, auth } from './firebase';
-import { Creator, CreatorFormData, LogEntry, ResourceLink } from '../types';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from './firebase';
+import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
 const LOGS_COLLECTION = 'logs';
 const RESOURCES_COLLECTION = 'resources';
+const BRANDS_COLLECTION = 'brand_products';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -69,6 +71,24 @@ export const subscribeToResources = (
     onData(resources);
   }, (error) => {
     console.error("Firebase Resources Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+export const subscribeToBrandProducts = (
+  onData: (products: BrandProduct[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, BRANDS_COLLECTION), orderBy('lastUpdated', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as BrandProduct[];
+    onData(products);
+  }, (error) => {
+    console.error("Firebase Brands Sync Error:", error);
     if (onError) onError(error);
   });
 };
@@ -157,5 +177,56 @@ export const deleteResource = async (id: string, title: string): Promise<void> =
   } catch (e) {
     console.error("Error deleting resource:", e);
     throw e;
+  }
+};
+
+export const saveBrandProduct = async (data: Omit<BrandProduct, 'id' | 'lastUpdated'>, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      const docRef = doc(db, BRANDS_COLLECTION, id);
+      await updateDoc(docRef, {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
+      addLog('UPDATE', `Product: ${data.name}`);
+    } else {
+      await addDoc(collection(db, BRANDS_COLLECTION), {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
+      addLog('CREATE', `Product: ${data.name}`);
+    }
+  } catch (e) {
+    console.error("Error saving brand product:", e);
+    throw e;
+  }
+};
+
+export const deleteBrandProduct = async (id: string, name: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, BRANDS_COLLECTION, id));
+    addLog('DELETE', `Product: ${name}`);
+  } catch (e) {
+    console.error("Error deleting brand product:", e);
+    throw e;
+  }
+};
+
+// --- FILE STORAGE ---
+
+export const uploadFile = async (file: File, path: string): Promise<string> => {
+  try {
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  } catch (error: any) {
+    console.error("File upload failed:", error);
+    if (error.code === 'storage/unauthorized') {
+      throw new Error(
+        "Storage Permission Denied. Go to Firebase Console -> Storage -> Rules and change 'if false;' to 'if request.auth != null;'"
+      );
+    }
+    throw error;
   }
 };

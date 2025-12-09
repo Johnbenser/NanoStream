@@ -54,6 +54,17 @@ export interface ResourceLink {
   createdAt: string;
 }
 
+export interface BrandProduct {
+  id: string;
+  name: string;
+  brand: 'Maikalian' | 'Xmas Curtain' | 'Tshirt' | 'Other';
+  description: string;
+  shopLink: string;
+  imageUrl?: string; // Legacy/Main image
+  images?: string[]; // New Gallery
+  lastUpdated: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   assumptions: string[];
@@ -87,6 +98,7 @@ export interface User {
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   CREATORS = 'CREATORS',
+  BRANDS = 'BRANDS',
   TOOLS = 'TOOLS',
   LINKS = 'LINKS',
   LOGS = 'LOGS',

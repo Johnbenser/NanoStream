@@ -1,6 +1,6 @@
 
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock, Link, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock, Link, Globe, ShoppingBag } from 'lucide-react';
 import { ViewState } from '../types';
 import { logout } from '../services/authService';
 import { addLog } from '../services/storageService';
@@ -29,8 +29,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
   const navItems = [
     { id: ViewState.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: ViewState.CREATORS, label: 'Creator Database', icon: Users },
+    { id: ViewState.BRANDS, label: 'Brands', icon: ShoppingBag }, // New Item
     { id: ViewState.TOOLS, label: 'AI Tools', icon: Sparkles },
-    { id: ViewState.LINKS, label: 'Internal Links', icon: Link }, // New Item
+    { id: ViewState.LINKS, label: 'Internal Links', icon: Link },
     // Only Admin can see logs and user management
     ...(userRole === 'ADMIN' ? [
       { id: ViewState.LOGS, label: 'Activity Logs', icon: Shield },
