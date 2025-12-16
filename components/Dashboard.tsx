@@ -2,19 +2,21 @@
 import React, { useEffect, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  ComposedChart, Line, Legend, ScatterChart, Scatter, ZAxis
+  ComposedChart, Line, Legend, ScatterChart, Scatter, ZAxis, PieChart, Pie, Cell
 } from 'recharts';
-import { Loader2, Brain, TrendingUp, Users, RefreshCw, ShoppingBag, Filter, MessageCircle, Share2, BarChart2, Zap, User } from 'lucide-react';
-import { Creator, AnalysisResult } from '../types';
+import { Loader2, Brain, TrendingUp, Users, RefreshCw, ShoppingBag, Filter, MessageCircle, Share2, BarChart2, Zap, User, ShieldAlert } from 'lucide-react';
+import { Creator, AnalysisResult, ReportedVideo } from '../types';
 import { analyzeCreatorData } from '../services/geminiService';
 
 interface DashboardProps {
   creators: Creator[];
+  reports: ReportedVideo[];
 }
 
 const PRODUCT_CATEGORIES = ['All Products', 'Maikalian', 'Xmas Curtain', 'Tshirt', 'Other'];
+const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
 
-const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
+const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +179,26 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
       avgLikes: videoCount > 0 ? Math.round(catTotalLikes / videoCount) : 0
     };
   });
+
+  // 5. REPORT / VIOLATION ANALYTICS
+  // Aggregating reports by type
+  const violationTypeMap = new Map<string, number>();
+  reports.forEach(r => {
+    const current = violationTypeMap.get(r.violationType) || 0;
+    violationTypeMap.set(r.violationType, current + 1);
+  });
+  const violationTypeData = Array.from(violationTypeMap.entries()).map(([name, value]) => ({ name, value }));
+
+  // Aggregating reports by Creator (Top Violators)
+  const creatorViolationMap = new Map<string, number>();
+  reports.forEach(r => {
+    const current = creatorViolationMap.get(r.creatorName) || 0;
+    creatorViolationMap.set(r.creatorName, current + 1);
+  });
+  const topViolatorsData = Array.from(creatorViolationMap.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -416,6 +438,71 @@ const Dashboard: React.FC<DashboardProps> = ({ creators }) => {
              </div>
         </div>
       )}
+
+      {/* === VIOLATION ANALYTICS SECTION === */}
+      <div className="mt-8 space-y-6">
+          <div className="flex items-center gap-2 px-1">
+             <ShieldAlert className="w-6 h-6 text-red-500" />
+             <h2 className="text-xl font-bold text-white">Violation Analytics</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Pie Chart: Violations by Type */}
+              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                 <h3 className="text-lg font-semibold text-white mb-4">Reports by Violation Type</h3>
+                 <div className="h-64">
+                    {violationTypeData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={violationTypeData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                >
+                                    {violationTypeData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-gray-500">
+                            No reports data available.
+                        </div>
+                    )}
+                 </div>
+              </div>
+
+              {/* Bar Chart: Violations by Creator */}
+              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                 <h3 className="text-lg font-semibold text-white mb-4">Top 5 Reported Creators</h3>
+                 <div className="h-64">
+                    {topViolatorsData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={topViolatorsData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false}/>
+                                <XAxis type="number" stroke="#9ca3af" allowDecimals={false} />
+                                <YAxis dataKey="name" type="category" stroke="#9ca3af" width={100} />
+                                <Tooltip cursor={{fill: '#374151'}} contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
+                                <Bar dataKey="count" name="Violations" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-gray-500">
+                            No creators reported yet.
+                        </div>
+                    )}
+                 </div>
+              </div>
+          </div>
+      </div>
 
       {/* AI Analysis Section (Dynamic based on filter) */}
       <div className="bg-gradient-to-r from-gray-800 to-gray-900 border border-purple-500/30 rounded-xl p-6 relative overflow-hidden mt-8">

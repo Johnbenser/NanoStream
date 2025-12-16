@@ -10,15 +10,17 @@ import CaptionGenerator from './components/CaptionGenerator';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
 import ResourceLinks from './components/ResourceLinks';
-import BrandManager from './components/BrandManager'; // New Import
+import BrandManager from './components/BrandManager'; 
+import ReportedContent from './components/ReportedContent'; 
 import Login from './components/Login';
-import { ViewState, Creator } from './types';
-import { subscribeToCreators } from './services/storageService';
+import { ViewState, Creator, ReportedVideo } from './types';
+import { subscribeToCreators, subscribeToReports } from './services/storageService';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [reports, setReports] = useState<ReportedVideo[]>([]);
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<'ADMIN' | 'EDITOR' | 'CSR'>('EDITOR');
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,7 @@ const App: React.FC = () => {
       } else {
         setUser(null);
         setCreators([]); // Clear data on logout
+        setReports([]);
       }
       setLoading(false);
     });
@@ -56,24 +59,42 @@ const App: React.FC = () => {
     // Only subscribe to DB if user is logged in
     if (!user) return;
 
-    const unsubscribeDb = subscribeToCreators(
+    // Creators Subscription
+    const unsubscribeCreators = subscribeToCreators(
       (data) => {
         setCreators(data);
         setDbError(null);
       },
       (error) => {
-        console.error("DB Error:", error);
-        // Check for specific "API Disabled" error from Firebase
-        if (error.message && (error.message.includes('Cloud Firestore API') || error.code === 'permission-denied')) {
-          setDbError("Database Access Error: Missing permissions or API disabled.");
-        } else {
-          setDbError("Database Connection Failed. Check your internet connection.");
-        }
+        console.error("DB Error Creators:", error);
+        handleDbError(error);
       }
     );
 
-    return () => unsubscribeDb();
-  }, [user]); // Re-run this effect when 'user' changes
+    // Reports Subscription (Added for Dashboard graphs)
+    const unsubscribeReports = subscribeToReports(
+      (data) => {
+        setReports(data);
+      },
+      (error) => {
+         console.error("DB Error Reports:", error);
+         // Optional: Don't overwrite main DB error if creators failed already
+      }
+    );
+
+    return () => {
+      unsubscribeCreators();
+      unsubscribeReports();
+    };
+  }, [user]); 
+
+  const handleDbError = (error: any) => {
+    if (error.message && (error.message.includes('Cloud Firestore API') || error.code === 'permission-denied')) {
+      setDbError("Database Access Error: Missing permissions or API disabled.");
+    } else {
+      setDbError("Database Connection Failed. Check your internet connection.");
+    }
+  };
 
   const handleLoginSuccess = () => {
     // Auth listener handles state, this just helps UI transition if needed
@@ -139,7 +160,7 @@ const App: React.FC = () => {
             <h2 className="text-3xl font-bold text-white">Overview</h2>
             <p className="text-gray-400 mt-2">Real-time performance metrics.</p>
           </div>
-          <Dashboard creators={creators} />
+          <Dashboard creators={creators} reports={reports} />
         </>
       )}
 
@@ -160,6 +181,16 @@ const App: React.FC = () => {
             <p className="text-gray-400 mt-2">Product inventory and shop links.</p>
           </div>
           <BrandManager />
+        </>
+      )}
+
+      {activeView === ViewState.REPORTS && (
+         <>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-white">Violations & Reports</h2>
+            <p className="text-gray-400 mt-2">Track reported content, sanctions, and resolution.</p>
+          </div>
+          <ReportedContent creators={creators} reports={reports} currentUser={user.email} />
         </>
       )}
 

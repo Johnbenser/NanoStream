@@ -12,12 +12,13 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from './firebase';
-import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct } from '../types';
+import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
 const LOGS_COLLECTION = 'logs';
 const RESOURCES_COLLECTION = 'resources';
 const BRANDS_COLLECTION = 'brand_products';
+const REPORTS_COLLECTION = 'reported_videos';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -89,6 +90,24 @@ export const subscribeToBrandProducts = (
     onData(products);
   }, (error) => {
     console.error("Firebase Brands Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+export const subscribeToReports = (
+  onData: (reports: ReportedVideo[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, REPORTS_COLLECTION), orderBy('dateReported', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const reports = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ReportedVideo[];
+    onData(reports);
+  }, (error) => {
+    console.error("Firebase Reports Sync Error:", error);
     if (onError) onError(error);
   });
 };
@@ -208,6 +227,36 @@ export const deleteBrandProduct = async (id: string, name: string): Promise<void
     addLog('DELETE', `Product: ${name}`);
   } catch (e) {
     console.error("Error deleting brand product:", e);
+    throw e;
+  }
+};
+
+export const saveReport = async (data: Omit<ReportedVideo, 'id'>, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      const docRef = doc(db, REPORTS_COLLECTION, id);
+      await updateDoc(docRef, {
+        ...data
+      });
+      addLog('UPDATE', `Report Case: ${data.videoTitle}`);
+    } else {
+      await addDoc(collection(db, REPORTS_COLLECTION), {
+        ...data
+      });
+      addLog('CREATE', `Report Case: ${data.videoTitle}`);
+    }
+  } catch (e) {
+    console.error("Error saving report:", e);
+    throw e;
+  }
+};
+
+export const deleteReport = async (id: string, title: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, REPORTS_COLLECTION, id));
+    addLog('DELETE', `Report Case: ${title}`);
+  } catch (e) {
+    console.error("Error deleting report:", e);
     throw e;
   }
 };

@@ -65,6 +65,21 @@ export interface BrandProduct {
   lastUpdated: string;
 }
 
+export interface ReportedVideo {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  videoTitle: string;
+  videoUrl: string; // Uploaded file or external link
+  productCategory: string; // New field for filtering
+  violationType: string; // e.g., 'Copyright', 'Guideline Violation', 'Low Quality'
+  sanctions: string;
+  actionPlan: string;
+  remarks: string; // Renamed from lessonsLearned
+  status: 'OPEN' | 'RESOLVED' | 'APPEAL';
+  dateReported: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   assumptions: string[];
@@ -100,6 +115,7 @@ export enum ViewState {
   CREATORS = 'CREATORS',
   BRANDS = 'BRANDS',
   TOOLS = 'TOOLS',
+  REPORTS = 'REPORTS',
   LINKS = 'LINKS',
   LOGS = 'LOGS',
   USERS = 'USERS',
