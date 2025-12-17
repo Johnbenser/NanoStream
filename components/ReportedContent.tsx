@@ -3,10 +3,11 @@ import React, { useState } from 'react';
 import { 
   AlertTriangle, Plus, Search, Filter, ShieldAlert, CheckCircle, 
   HelpCircle, Trash2, Edit2, Upload, Video, User, 
-  BookOpen, Target, Scale, Loader2, ExternalLink, X, FileSpreadsheet, Calendar, Tag
+  BookOpen, Target, Scale, Loader2, ExternalLink, X, FileSpreadsheet, Calendar, Tag, Brain, Sparkles, AlertCircle
 } from 'lucide-react';
-import { Creator, ReportedVideo } from '../types';
+import { Creator, ReportedVideo, ReportAnalysisResult } from '../types';
 import { saveReport, deleteReport, uploadFile } from '../services/storageService';
+import { analyzeViolations } from '../services/geminiService';
 
 interface ReportedContentProps {
   creators: Creator[];
@@ -29,6 +30,10 @@ const PRODUCT_CATEGORIES = ['Maikalian', 'Xmas Curtain', 'Tshirt', 'Other'];
 const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, currentUser }) => {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Analysis State
+  const [analysis, setAnalysis] = useState<ReportAnalysisResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,6 +135,20 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
     }
   };
 
+  const handleGenerateAnalysis = async () => {
+    if (reports.length === 0) return;
+    setAnalyzing(true);
+    try {
+      const result = await analyzeViolations(reports);
+      setAnalysis(result);
+    } catch (error: any) {
+      console.error(error);
+      alert("Failed to generate AI insights.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'OPEN': return 'text-red-400 bg-red-400/10 border-red-400/20';
@@ -159,7 +178,28 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
         .brand-text { color: #991b1b; font-size: 28px; font-weight: 900; margin: 0; text-transform: uppercase; }
         .campaign-text { color: #000000; font-size: 16px; font-weight: bold; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
         .meta-data { color: #374151; font-size: 11px; margin-top: 15px; font-family: monospace; }
-        table { border-collapse: collapse; width: 100%; border: 1px solid #e5e7eb; }
+        
+        /* AI Section Styles */
+        .ai-section { background-color: #fef2f2; border: 1px solid #fee2e2; padding: 15px; margin-bottom: 25px; border-radius: 4px; }
+        .ai-header { color: #991b1b; font-size: 14px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; border-bottom: 1px solid #fca5a5; padding-bottom: 5px; }
+        .ai-content h4 { color: #7f1d1d; font-size: 12px; font-weight: bold; margin: 10px 0 5px 0; }
+        .ai-content p { color: #1f2937; font-size: 11px; margin: 0 0 5px 0; line-height: 1.4; }
+        .ai-list { margin: 0; padding-left: 20px; }
+        .ai-list li { color: #1f2937; font-size: 11px; margin-bottom: 2px; }
+
+        /* Guide Section Styles */
+        .guide-section { margin-top: 50px; border-top: 5px solid #4c1d95; padding-top: 20px; background-color: #f5f3ff; padding: 20px; }
+        .guide-super-title { font-size: 24px; font-weight: 900; color: #4c1d95; margin-bottom: 20px; text-transform: uppercase; }
+        .guide-title { font-size: 16px; font-weight: bold; color: #4c1d95; margin-bottom: 10px; margin-top: 20px; text-decoration: underline; }
+        .guide-subtitle { font-size: 14px; font-weight: bold; color: #b91c1c; margin-top: 15px; margin-bottom: 5px; }
+        .guide-p { font-size: 12px; color: #1f2937; line-height: 1.5; margin-bottom: 10px; }
+        .guide-ul { margin-left: 20px; margin-bottom: 15px; }
+        .guide-li { font-size: 12px; color: #1f2937; margin-bottom: 5px; font-weight: bold; }
+        .guide-li-desc { font-weight: normal; display: block; margin-top: 2px; color: #4b5563; }
+        .highlight { background-color: #ffff00; font-weight: bold; }
+
+        /* Table Styles */
+        table { border-collapse: collapse; width: 100%; border: 1px solid #e5e7eb; margin-bottom: 30px; }
         th { background-color: #991b1b; color: white; border: 1px solid #7f1d1d; padding: 12px 10px; text-align: left; font-weight: bold; font-size: 11px; white-space: nowrap; }
         td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: middle; color: #1f2937; font-size: 11px; }
         tr:nth-child(even) { background-color: #fef2f2; }
@@ -167,6 +207,83 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
         .status-resolved { color: #16a34a; font-weight: bold; }
         .status-appeal { color: #d97706; font-weight: bold; }
       </style>
+    `;
+
+    // Construct AI Section HTML if analysis exists
+    let aiSectionHtml = '';
+    if (analysis) {
+        aiSectionHtml = `
+          <div class="ai-section">
+             <div class="ai-header">Violation Analysis & Insights</div>
+             <div class="ai-content">
+                <h4>Summary of Remarks</h4>
+                <p>${analysis.summary}</p>
+                
+                <h4>Main Reasons for Violations</h4>
+                <ul class="ai-list">
+                   ${analysis.mainReasons.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+
+                <h4>Recommendations</h4>
+                <ul class="ai-list">
+                   ${analysis.recommendations.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+             </div>
+          </div>
+        `;
+    }
+
+    // Static Guide HTML content
+    const guideHtml = `
+      <div class="guide-section">
+        <div class="guide-super-title">Appendix: Violation Prevention Guide</div>
+        
+        <div class="guide-title">Why "Unoriginal Content" is Triggering</div>
+        <p class="guide-p">Platforms (TikTok, Reels, Shorts) use two primary detection methods: <strong>Audio Waveforms</strong> and <strong>Visual Semantic Matching</strong>.</p>
+        
+        <div class="guide-subtitle">1. The Audio Fingerprint (The Biggest Culprit)</div>
+        <p class="guide-p">If you generate 100 videos using the same Text-to-Speech (TTS) voice reading the same script, the audio waveform is nearly identical for every video.</p>
+        <p class="guide-p"><em>The Algorithm's View:</em> It "hears" the exact same audio file uploaded by multiple accounts and assumes it is spam or stolen.</p>
+
+        <div class="guide-subtitle">2. Visual Similarity (The AI Avatar Trap)</div>
+        <p class="guide-p">AI avatars (HeyGen, D-ID, etc.) are static. Even with camera pans, the pixel data remains 90% identical.</p>
+        <p class="guide-p"><em>The Algorithm's View:</em> It sees the same "person" in the same "room" across 50 accounts. Flags as "Mass Produced".</p>
+
+        <div class="guide-subtitle">3. Coordinated Behavior</div>
+        <p class="guide-p">Multiple nano creators uploading similar videos linking to the same shop simultaneously triggers "content farm" filters.</p>
+
+        <br/>
+        <div class="guide-title">How to Fix This (Strategic Pivot)</div>
+        <p class="guide-p">You must introduce high variability into raw assets before distribution.</p>
+
+        <div class="guide-subtitle">1. Vary the Audio (Critical)</div>
+        <ul class="guide-ul">
+            <li class="guide-li">Script Spinning <span class="guide-li-desc">Do not use one script. Create 5-10 variations. Change the "Hook" (first 3 seconds) for every batch.</span></li>
+            <li class="guide-li">Voice Rotation <span class="guide-li-desc">Rotate between 4-5 different TTS voices (gender, accent, speed).</span></li>
+            <li class="guide-li">Speed & Pitch <span class="guide-li-desc">Alter speed (1.05x) in post-production.</span></li>
+        </ul>
+
+        <div class="guide-subtitle">2. Break the Visual Pattern (B-Roll)</div>
+        <p class="guide-p">The AI Avatar should not be on screen for 100% of the video.</p>
+        <ul class="guide-ul">
+            <li class="guide-li">The Sandwich Method: <span class="guide-li-desc">0:00-0:03 Avatar (Hook) -> 0:03-0:10 Product B-Roll -> 0:10-0:15 Avatar (CTA).</span></li>
+        </ul>
+
+        <div class="guide-subtitle">3. Change the Environment</div>
+        <p class="guide-p">Generate avatars on Green Screen. Instruct creators to put their own photo/video background. This makes every video visually unique.</p>
+
+        <div class="guide-subtitle">4. The "Remix" Strategy (Best for Nano Creators)</div>
+        <p class="guide-p">Instead of giving a finished video, ask creators to use the "Green Screen" filter on TikTok. They record themselves nodding while the AI video plays in the background. This adds a "human" element.</p>
+
+        <br/>
+        <div class="guide-title" style="color: #16a34a;">Summary Checklist for Next Batch</div>
+        <ul class="guide-ul">
+            <li class="guide-li">Script: <span class="guide-li-desc">Write 5 variations of the hook.</span></li>
+            <li class="guide-li">Audio: <span class="guide-li-desc">Use 3 different AI voices.</span></li>
+            <li class="guide-li">Visuals: <span class="guide-li-desc">Add overlays/B-roll so avatar isn't visible the whole time.</span></li>
+            <li class="guide-li">Background: <span class="guide-li-desc">Swap background image or use green screen.</span></li>
+        </ul>
+      </div>
     `;
 
     const tableRows = filteredReports.map(r => `
@@ -194,8 +311,11 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
         <div class="header-container">
           <div class="brand-text">Global Media Live</div>
           <div class="campaign-text">TikTok Violation Reports Log</div>
-          <div class="meta-data">Generated by: ${username} | Date: ${generateDate}</div>
+          <div class="meta-data">Generated by: ${username} | Date: ${generateDate} | Source: nano-stream.vercel.app</div>
         </div>
+        
+        ${aiSectionHtml}
+
         <table>
           <thead>
             <tr>
@@ -215,6 +335,8 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
             ${tableRows}
           </tbody>
         </table>
+
+        ${guideHtml}
       </body>
       </html>
     `;
@@ -246,6 +368,75 @@ const ReportedContent: React.FC<ReportedContentProps> = ({ creators, reports, cu
         >
           <Plus className="w-4 h-4" /> Log TikTok Report
         </button>
+      </div>
+
+      {/* AI Insights Panel */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg">
+         <div className="p-4 bg-gray-900/50 border-b border-gray-700 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+               <Brain className="w-5 h-5 text-purple-400" />
+               <h3 className="font-bold text-white">Violation Analysis & Insights</h3>
+            </div>
+            {!analyzing && (
+               <button 
+                 onClick={handleGenerateAnalysis}
+                 className="text-xs flex items-center gap-1 bg-purple-600/20 text-purple-300 px-3 py-1.5 rounded-lg border border-purple-500/30 hover:bg-purple-600 hover:text-white transition-all"
+               >
+                 <Sparkles className="w-3 h-3" /> {analysis ? 'Regenerate Insights' : 'Generate Insights'}
+               </button>
+            )}
+         </div>
+         
+         {analyzing ? (
+            <div className="p-8 flex justify-center items-center text-gray-400">
+               <Loader2 className="w-6 h-6 animate-spin mr-2 text-purple-500" />
+               Analyzing report remarks and violation patterns...
+            </div>
+         ) : analysis ? (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                   <h4 className="text-sm font-bold text-gray-300 mb-2 uppercase flex items-center gap-2">
+                     <BookOpen className="w-4 h-4 text-blue-400" /> Summary of Remarks
+                   </h4>
+                   <p className="text-gray-400 text-sm leading-relaxed mb-4 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
+                      {analysis.summary}
+                   </p>
+                   
+                   <h4 className="text-sm font-bold text-gray-300 mb-2 uppercase flex items-center gap-2">
+                     <AlertCircle className="w-4 h-4 text-red-400" /> Main Reasons for Violations
+                   </h4>
+                   <ul className="space-y-1">
+                      {analysis.mainReasons.map((r, i) => (
+                        <li key={i} className="text-sm text-gray-400 flex items-start gap-2">
+                           <span className="text-red-500/50 mt-1">•</span> {r}
+                        </li>
+                      ))}
+                   </ul>
+                </div>
+                <div>
+                   <h4 className="text-sm font-bold text-gray-300 mb-2 uppercase flex items-center gap-2">
+                     <Target className="w-4 h-4 text-green-400" /> Strategic Recommendations
+                   </h4>
+                   <div className="bg-green-900/10 border border-green-500/20 rounded-xl p-4">
+                      <ul className="space-y-2">
+                         {analysis.recommendations.map((r, i) => (
+                           <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+                              {r}
+                           </li>
+                         ))}
+                      </ul>
+                   </div>
+                   <div className="mt-4 text-xs text-gray-500 italic">
+                      * This analysis is included in the Excel export.
+                   </div>
+                </div>
+            </div>
+         ) : (
+            <div className="p-8 text-center text-gray-500 text-sm">
+               Click "Generate Insights" to let AI analyze your violation reports and identify root causes.
+            </div>
+         )}
       </div>
 
       {/* Filters Toolbar */}

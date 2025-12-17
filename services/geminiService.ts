@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Creator, AnalysisResult, CaptionResult } from '../types';
+import { Creator, AnalysisResult, CaptionResult, ReportedVideo, ReportAnalysisResult } from '../types';
 
 const getClient = () => {
   // Check Environment Variables (Standard Vercel/Vite Config)
@@ -81,6 +81,64 @@ export const analyzeCreatorData = async (creators: Creator[]): Promise<AnalysisR
     console.error("Analysis Error:", error);
     // Re-throw so the UI knows it failed, rather than showing empty data
     throw new Error(error.message || "Failed to generate analysis");
+  }
+};
+
+export const analyzeViolations = async (reports: ReportedVideo[]): Promise<ReportAnalysisResult> => {
+  if (reports.length === 0) {
+    throw new Error("No reports to analyze.");
+  }
+
+  // Create a simplified dataset for the AI to process token-efficiently
+  const dataset = JSON.stringify(reports.map(r => ({
+    type: r.violationType,
+    product: r.productCategory,
+    sanctions: r.sanctions,
+    remarks: r.remarks,
+    date: r.dateReported
+  })));
+
+  const prompt = `
+    Analyze the following database of TikTok violation reports.
+    1. Summarize the 'remarks' and overall situation.
+    2. Identify the MAIN REASONS (root causes) why these violations are happening based on the patterns in types and remarks.
+    3. Provide actionable recommendations to prevent future violations.
+
+    Dataset: ${dataset}
+  `;
+
+  try {
+    const ai = getClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING },
+            mainReasons: { type: Type.ARRAY, items: { type: Type.STRING } },
+            recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No analysis generated");
+    
+    const parsed = JSON.parse(text);
+
+    return {
+      summary: parsed.summary || "No summary available.",
+      mainReasons: Array.isArray(parsed.mainReasons) ? parsed.mainReasons : [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : []
+    };
+
+  } catch (error: any) {
+    console.error("Violation Analysis Error:", error);
+    throw new Error(error.message || "Failed to generate violation analysis");
   }
 };
 

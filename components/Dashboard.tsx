@@ -374,7 +374,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                                 <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
                                 <Scatter name="Creators" data={sortedByViews} fill="#8884d8">
                                     {sortedByViews.map((entry, index) => (
-                                    <cell key={`cell-${index}`} fill={entry.engagementRate > 5 ? '#4ade80' : '#a855f7'} />
+                                    <Cell key={`cell-${index}`} fill={entry.engagementRate > 5 ? '#4ade80' : '#a855f7'} />
                                     ))}
                                 </Scatter>
                             </ScatterChart>

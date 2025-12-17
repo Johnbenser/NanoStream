@@ -88,6 +88,12 @@ export interface AnalysisResult {
   audienceDemographics: string[];
 }
 
+export interface ReportAnalysisResult {
+  summary: string;
+  mainReasons: string[];
+  recommendations: string[];
+}
+
 export interface CaptionResult {
   caption: string;
   hashtags: string[];
