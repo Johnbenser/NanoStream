@@ -3,10 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './services/firebase';
+import { logout } from './services/authService'; // Import logout
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import CreatorList from './components/CreatorList';
 import CaptionGenerator from './components/CaptionGenerator';
+import CollageMaker from './components/CollageMaker';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
 import ResourceLinks from './components/ResourceLinks';
@@ -15,7 +17,7 @@ import ReportedContent from './components/ReportedContent';
 import Login from './components/Login';
 import { ViewState, Creator, ReportedVideo } from './types';
 import { subscribeToCreators, subscribeToReports } from './services/storageService';
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -25,6 +27,9 @@ const App: React.FC = () => {
   const [userRole, setUserRole] = useState<'ADMIN' | 'EDITOR' | 'CSR'>('EDITOR');
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+
+  // Sub-navigation state for Tools View
+  const [activeTool, setActiveTool] = useState<'caption' | 'collage'>('caption');
 
   // 1. Auth Listener Effect
   useEffect(() => {
@@ -88,6 +93,42 @@ const App: React.FC = () => {
     };
   }, [user]); 
 
+  // 3. Session Timeout Enforcement (30 Minutes)
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    if (user) {
+      const SESSION_KEY = 'gml_session_start';
+      const LIMIT_MS = 30 * 60 * 1000; // 30 minutes
+
+      let startTime = sessionStorage.getItem(SESSION_KEY);
+      
+      // If fresh login (or tab refresh without storage), set start time
+      if (!startTime) {
+        startTime = Date.now().toString();
+        sessionStorage.setItem(SESSION_KEY, startTime);
+      }
+
+      const elapsed = Date.now() - parseInt(startTime, 10);
+      const remaining = LIMIT_MS - elapsed;
+
+      // Set logout timer
+      timeoutId = setTimeout(async () => {
+        alert("Session limit reached (30 minutes). You have been logged out.");
+        await logout();
+        sessionStorage.removeItem(SESSION_KEY);
+        // The onAuthStateChanged will handle setting user to null
+      }, Math.max(0, remaining));
+    } else {
+      // Clean up if user is logged out
+      sessionStorage.removeItem('gml_session_start');
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [user]);
+
   const handleDbError = (error: any) => {
     if (error.message && (error.message.includes('Cloud Firestore API') || error.code === 'permission-denied')) {
       setDbError("Database Access Error: Missing permissions or API disabled.");
@@ -102,6 +143,8 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    // Clean up session storage manually on explicit logout
+    sessionStorage.removeItem('gml_session_start');
     setActiveView(ViewState.DASHBOARD);
   };
 
@@ -196,11 +239,30 @@ const App: React.FC = () => {
 
       {activeView === ViewState.TOOLS && (
          <>
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white">AI Tools</h2>
-            <p className="text-gray-400 mt-2">Generate optimized content strategies.</p>
+          <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+               <h2 className="text-3xl font-bold text-white">Creative Tools</h2>
+               <p className="text-gray-400 mt-2">AI-powered utilities for content production.</p>
+            </div>
+            
+            {/* Tool Switcher */}
+            <div className="bg-gray-800 p-1 rounded-lg border border-gray-700 flex">
+               <button 
+                 onClick={() => setActiveTool('caption')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTool === 'caption' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <Sparkles className="w-4 h-4" /> Caption AI
+               </button>
+               <button 
+                 onClick={() => setActiveTool('collage')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTool === 'collage' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <LayoutGrid className="w-4 h-4" /> Collage Maker
+               </button>
+            </div>
           </div>
-          <CaptionGenerator />
+          
+          {activeTool === 'caption' ? <CaptionGenerator /> : <CollageMaker />}
         </>
       )}
 

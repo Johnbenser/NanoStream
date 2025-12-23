@@ -261,3 +261,99 @@ export const scrapeVideoStats = async (videoUrl: string): Promise<{ views: numbe
     return null; // Return null to trigger manual override in UI
   }
 };
+
+export const analyzeProductImages = async (imageUrls: (string | null)[]): Promise<{ global: string, labels: string[] }> => {
+  try {
+    const ai = getClient();
+
+    const parts: any[] = [];
+    const validIndices: number[] = [];
+
+    // Process images
+    for (let i = 0; i < imageUrls.length; i++) {
+        const url = imageUrls[i];
+        if (!url) continue;
+        
+        validIndices.push(i);
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+        });
+        
+        // Remove data:image/xxx;base64, prefix
+        const cleanBase64 = base64.split(',')[1];
+        const mimeType = base64.substring(base64.indexOf(':') + 1, base64.indexOf(';'));
+
+        parts.push({
+            inlineData: {
+                data: cleanBase64,
+                mimeType: mimeType
+            }
+        });
+    }
+
+    if (parts.length === 0) return { global: '', labels: [] };
+
+    // Update prompt to be very explicit about JSON format since we can't use responseMimeType
+    parts.push({
+        text: `Analyze these ${parts.length} product images. 
+        Return a valid, raw JSON object (do not use Markdown code blocks) with the following structure:
+        {
+            "global": "A short product summary.",
+            "labels": ["Label 1", "Label 2", ...]
+        }
+        The "labels" array must have exactly ${parts.length} strings. Each string is a very short annotation (max 5-8 words) for the specific image (e.g. "Front: 14x20cm", "Pockets: 20 slots", "Weight: 1kg"). Order must match the images provided.`
+    });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image", // Nano Banana
+      contents: { parts },
+      // NOTE: gemini-2.5-flash-image does NOT support responseMimeType: "application/json"
+      // We must handle the text response manually.
+    });
+
+    let text = response.text || "{}";
+    
+    // Clean up if model still output markdown
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (e) {
+        console.warn("Raw JSON parse failed, attempting regex extraction", text);
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+            try {
+                json = JSON.parse(match[0]);
+            } catch (e2) {
+                json = { global: '', labels: [] };
+            }
+        } else {
+            json = { global: '', labels: [] };
+        }
+    }
+    
+    // Map partial labels back to full array slots (Dynamic length)
+    const finalLabels = new Array(imageUrls.length).fill('');
+    if (json && Array.isArray(json.labels)) {
+        json.labels.forEach((label: string, idx: number) => {
+            if (idx < validIndices.length) {
+                finalLabels[validIndices[idx]] = label;
+            }
+        });
+    }
+
+    return {
+        global: json?.global || '',
+        labels: finalLabels
+    };
+
+  } catch (error: any) {
+    console.error("Nano Banana Analysis Error:", error);
+    throw new Error(error.message || "Failed to analyze images.");
+  }
+};
