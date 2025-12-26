@@ -150,9 +150,9 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-        <p className="text-gray-400 animate-pulse">Connecting to Global Media Live...</p>
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <p className="text-blue-200 animate-pulse">Connecting to Global Media Live...</p>
       </div>
     );
   }

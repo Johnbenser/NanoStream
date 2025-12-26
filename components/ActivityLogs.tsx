@@ -25,7 +25,7 @@ const ActivityLogs: React.FC = () => {
       case 'UPDATE': return <Edit className="w-4 h-4 text-blue-400" />;
       case 'DELETE': return <Trash2 className="w-4 h-4 text-red-400" />;
       case 'IMPORT': return <FileSpreadsheet className="w-4 h-4 text-yellow-400" />;
-      case 'LOGIN': return <LogIn className="w-4 h-4 text-purple-400" />;
+      case 'LOGIN': return <LogIn className="w-4 h-4 text-cyan-400" />;
       case 'LOGOUT': return <LogOut className="w-4 h-4 text-gray-400" />;
       default: return <History className="w-4 h-4 text-gray-400" />;
     }
@@ -36,16 +36,16 @@ const ActivityLogs: React.FC = () => {
       case 'CREATE': return 'bg-green-400/10 border-green-400/20 text-green-400';
       case 'UPDATE': return 'bg-blue-400/10 border-blue-400/20 text-blue-400';
       case 'DELETE': return 'bg-red-400/10 border-red-400/20 text-red-400';
-      case 'LOGIN': return 'bg-purple-400/10 border-purple-400/20 text-purple-400';
+      case 'LOGIN': return 'bg-cyan-400/10 border-cyan-400/20 text-cyan-400';
       default: return 'bg-gray-700/50 border-gray-600 text-gray-300';
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-       <div className="flex items-center gap-3 mb-6 bg-gray-800 p-6 rounded-xl border border-gray-700">
-         <div className="bg-purple-500/20 p-3 rounded-lg">
-            <Shield className="w-6 h-6 text-purple-400" />
+       <div className="flex items-center gap-3 mb-6 bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-xl">
+         <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20">
+            <Shield className="w-6 h-6 text-blue-400" />
          </div>
          <div>
            <h3 className="text-xl font-bold text-white">System Activity Logs</h3>
@@ -53,13 +53,13 @@ const ActivityLogs: React.FC = () => {
          </div>
        </div>
 
-       <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg">
+       <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden shadow-xl">
          {logs.length === 0 ? (
            <div className="p-12 text-center text-gray-500">No activity recorded yet.</div>
          ) : (
            <div className="overflow-x-auto">
              <table className="w-full text-left text-sm">
-               <thead className="bg-gray-900 text-gray-400 uppercase font-medium border-b border-gray-700">
+               <thead className="bg-gray-800/80 text-gray-400 uppercase font-medium border-b border-gray-800">
                  <tr>
                    <th className="px-6 py-4">Action</th>
                    <th className="px-6 py-4">Details</th>

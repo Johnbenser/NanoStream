@@ -57,29 +57,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 overflow-hidden animate-fade-in">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-8 text-center">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+      <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md border border-gray-800 overflow-hidden animate-fade-in">
+        <div className="bg-gradient-to-r from-blue-600 to-cyan-500 p-8 text-center">
           <div className="flex justify-center mb-4">
-            <div className="bg-white rounded-xl p-3 shadow-lg">
-              <Globe className="h-10 w-10 text-purple-600" />
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 shadow-lg border border-white/20">
+              <Globe className="h-10 w-10 text-white" />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-white">Global Media Live</h1>
-          <p className="text-purple-100 text-sm mt-2">Employee Workspace</p>
+          <p className="text-blue-100 text-sm mt-2">Employee Workspace</p>
         </div>
         
         {/* Toggle Tabs */}
-        <div className="flex border-b border-gray-700">
+        <div className="flex border-b border-gray-800">
           <button 
             onClick={() => { setIsLogin(true); setError(''); }}
-            className={`flex-1 py-4 text-sm font-medium transition-colors ${isLogin ? 'text-white border-b-2 border-purple-500 bg-gray-700/50' : 'text-gray-400 hover:text-white hover:bg-gray-700/30'}`}
+            className={`flex-1 py-4 text-sm font-medium transition-colors ${isLogin ? 'text-blue-400 border-b-2 border-blue-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800/30'}`}
           >
             Sign In
           </button>
           <button 
              onClick={() => { setIsLogin(false); setError(''); }}
-             className={`flex-1 py-4 text-sm font-medium transition-colors ${!isLogin ? 'text-white border-b-2 border-purple-500 bg-gray-700/50' : 'text-gray-400 hover:text-white hover:bg-gray-700/30'}`}
+             className={`flex-1 py-4 text-sm font-medium transition-colors ${!isLogin ? 'text-blue-400 border-b-2 border-blue-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800/30'}`}
           >
             Create Account
           </button>
@@ -89,12 +89,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-400">Username</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+              <div className="relative group">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5 group-hover:text-blue-400 transition-colors" />
                 <input
                   type="text"
                   required
-                  className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+                  className="w-full bg-gray-950 border border-gray-800 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all"
                   placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -104,12 +104,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-400">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+              <div className="relative group">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5 group-hover:text-blue-400 transition-colors" />
                 <input
                   type="password"
                   required
-                  className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+                  className="w-full bg-gray-950 border border-gray-800 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -123,13 +123,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Account Key Field - Registration Only */}
             {!isLogin && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                <label className="text-sm font-medium text-purple-400">Account Key</label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 w-5 h-5" />
+                <label className="text-sm font-medium text-blue-400">Account Key</label>
+                <div className="relative group">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 w-5 h-5" />
                   <input
                     type="text"
                     required
-                    className="w-full bg-gray-900 border border-purple-500/50 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+                    className="w-full bg-gray-950 border border-blue-500/30 text-white pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all"
                     placeholder="Enter Employee Key"
                     value={accountKey}
                     onChange={(e) => setAccountKey(e.target.value)}
