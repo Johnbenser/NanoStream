@@ -204,14 +204,14 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
     <div className="space-y-6 animate-fade-in">
       
       {/* HEADER & FILTER */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-xl">
         <div>
-           <h2 className="text-xl font-bold text-white">
+           <h2 className="text-2xl font-bold text-white tracking-tight">
              {selectedCreatorId !== 'all' 
                 ? `${singleCreator?.name}'s Analytics` 
                 : (selectedProduct === 'All Products' ? 'Global Overview' : `${selectedProduct} Performance`)}
            </h2>
-           <p className="text-gray-400 text-sm">
+           <p className="text-gray-400 text-sm mt-1">
              {selectedCreatorId !== 'all' 
                ? `Detailed video performance analysis for ${singleCreator?.name}.`
                : (selectedProduct === 'All Products' 
@@ -222,12 +222,12 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
         
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
            {/* CREATOR SELECTOR */}
-           <div className="relative">
-             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 w-4 h-4" />
+           <div className="relative group">
+             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 w-4 h-4 group-hover:text-blue-300 transition-colors" />
              <select 
                 value={selectedCreatorId}
                 onChange={(e) => setSelectedCreatorId(e.target.value)}
-                className="w-full sm:w-auto bg-gray-900 border border-blue-500/30 text-white pl-10 pr-8 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none cursor-pointer"
+                className="w-full sm:w-auto bg-gray-800/80 border border-gray-700 text-white pl-10 pr-8 py-2.5 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:outline-none appearance-none cursor-pointer transition-all hover:bg-gray-800"
              >
                <option value="all">All Creators</option>
                {creators.map(c => (
@@ -237,12 +237,12 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
            </div>
 
            {/* PRODUCT SELECTOR */}
-           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400 w-4 h-4" />
+           <div className="relative group">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400 w-4 h-4 group-hover:text-cyan-300 transition-colors" />
             <select 
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
-              className="w-full sm:w-auto bg-gray-900 border border-purple-500/30 text-white pl-10 pr-8 py-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none cursor-pointer"
+              className="w-full sm:w-auto bg-gray-800/80 border border-gray-700 text-white pl-10 pr-8 py-2.5 rounded-xl focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 focus:outline-none appearance-none cursor-pointer transition-all hover:bg-gray-800"
             >
               {PRODUCT_CATEGORIES.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -254,33 +254,41 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
 
       {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Views</h3>
-            <TrendingUp className="w-5 h-5 text-green-400" />
+        <div className="bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-lg hover:border-blue-500/30 transition-all duration-300 group">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm font-medium group-hover:text-blue-200 transition-colors">Total Views</h3>
+            <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+              <TrendingUp className="w-5 h-5 text-blue-400" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-white">{totalViews.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white">{totalViews.toLocaleString()}</p>
         </div>
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Likes</h3>
-            <TrendingUp className="w-5 h-5 text-pink-400" />
+        <div className="bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-lg hover:border-pink-500/30 transition-all duration-300 group">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm font-medium group-hover:text-pink-200 transition-colors">Total Likes</h3>
+            <div className="p-2 bg-pink-500/10 rounded-lg group-hover:bg-pink-500/20 transition-colors">
+              <TrendingUp className="w-5 h-5 text-pink-400" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-white">{totalLikes.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white">{totalLikes.toLocaleString()}</p>
         </div>
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Comments</h3>
-            <MessageCircle className="w-5 h-5 text-blue-400" />
+        <div className="bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-lg hover:border-cyan-500/30 transition-all duration-300 group">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm font-medium group-hover:text-cyan-200 transition-colors">Total Comments</h3>
+            <div className="p-2 bg-cyan-500/10 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
+              <MessageCircle className="w-5 h-5 text-cyan-400" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-white">{totalComments.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white">{totalComments.toLocaleString()}</p>
         </div>
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-gray-400 text-sm font-medium">Total Shares</h3>
-            <Share2 className="w-5 h-5 text-purple-400" />
+        <div className="bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-lg hover:border-violet-500/30 transition-all duration-300 group">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-gray-400 text-sm font-medium group-hover:text-violet-200 transition-colors">Total Shares</h3>
+            <div className="p-2 bg-violet-500/10 rounded-lg group-hover:bg-violet-500/20 transition-colors">
+              <Share2 className="w-5 h-5 text-violet-400" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-white">{totalShares.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-white">{totalShares.toLocaleString()}</p>
         </div>
       </div>
 
@@ -355,7 +363,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
             {/* DETAILED GLOBAL ANALYTICS */}
             <div className="space-y-6">
                 <div className="flex items-center gap-2 mb-2 px-1">
-                    <BarChart2 className="w-6 h-6 text-purple-400" />
+                    <BarChart2 className="w-6 h-6 text-cyan-400" />
                     <h2 className="text-xl font-bold text-white">Advanced Analytics</h2>
                 </div>
 
@@ -372,9 +380,9 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                                 <YAxis type="number" dataKey="engagement" name="Total Interactions" stroke="#9ca3af" label={{ value: 'Interactions', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
                                 <ZAxis type="number" dataKey="engagementRate" range={[50, 400]} name="Eng. Rate %" />
                                 <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
-                                <Scatter name="Creators" data={sortedByViews} fill="#8884d8">
+                                <Scatter name="Creators" data={sortedByViews} fill="#3b82f6">
                                     {sortedByViews.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.engagementRate > 5 ? '#4ade80' : '#a855f7'} />
+                                    <Cell key={`cell-${index}`} fill={entry.engagementRate > 5 ? '#22d3ee' : '#3b82f6'} />
                                     ))}
                                 </Scatter>
                             </ScatterChart>
@@ -505,20 +513,22 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
       </div>
 
       {/* AI Analysis Section (Dynamic based on filter) */}
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 border border-purple-500/30 rounded-xl p-6 relative overflow-hidden mt-8">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Brain className="w-32 h-32" />
+      <div className="bg-gradient-to-br from-gray-900 via-blue-900/10 to-gray-900 border border-blue-500/30 rounded-xl p-6 relative overflow-hidden mt-8 shadow-[0_0_25px_rgba(59,130,246,0.1)]">
+        <div className="absolute top-0 right-0 p-4 opacity-20">
+          <Brain className="w-32 h-32 text-blue-500" />
         </div>
         
         <div className="flex items-center justify-between mb-4 relative z-10">
           <div className="flex items-center gap-2">
-            <Brain className="w-6 h-6 text-purple-400" />
+            <div className="p-2 bg-blue-500/20 rounded-lg">
+               <Brain className="w-5 h-5 text-blue-400" />
+            </div>
             <h2 className="text-xl font-bold text-white">
                {selectedCreatorId !== 'all' ? `AI Insights: ${singleCreator?.name}` : 'Global AI Insights'}
             </h2>
           </div>
           {!loading && error && (
-            <button onClick={fetchAnalysis} className="text-sm text-purple-400 hover:text-white flex items-center gap-1">
+            <button onClick={fetchAnalysis} className="text-sm text-blue-400 hover:text-white flex items-center gap-1 transition-colors">
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           )}
@@ -526,7 +536,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
             <span className="ml-2 text-gray-400">Analyzing data...</span>
           </div>
         ) : error ? (
@@ -536,14 +546,14 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
           </div>
         ) : analysis ? (
           <div className="space-y-4 relative z-10">
-            <div className="bg-gray-800/50 p-4 rounded-lg">
-              <h3 className="text-purple-300 font-semibold mb-2">Summary</h3>
+            <div className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-lg border border-blue-500/10">
+              <h3 className="text-blue-300 font-semibold mb-2">Summary</h3>
               <p className="text-gray-300 leading-relaxed">{analysis.summary}</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-800/50 p-4 rounded-lg">
-                <h3 className="text-blue-300 font-semibold mb-2">Key Assumptions</h3>
+              <div className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-lg border border-gray-700/50">
+                <h3 className="text-cyan-300 font-semibold mb-2">Key Assumptions</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-300">
                   {analysis.assumptions?.map((item, idx) => (
                     <li key={idx} className="text-sm">{item}</li>

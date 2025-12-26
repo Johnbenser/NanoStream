@@ -216,7 +216,7 @@ const BrandManager: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       
       {/* HEADER */}
-      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xl">
         <div>
            <h2 className="text-xl font-bold text-white flex items-center gap-2">
              <ShoppingBag className="w-6 h-6 text-orange-400" />
@@ -395,10 +395,10 @@ const BrandManager: React.FC = () => {
       {/* EDIT/ADD MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-          <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-y-auto max-h-[90vh]">
+          <div className="bg-gray-800/90 backdrop-blur-md rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-900/50 rounded-t-xl">
                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                 {editingId ? <Edit2 className="w-4 h-4 text-purple-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
+                 {editingId ? <Edit2 className="w-4 h-4 text-blue-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
                  {editingId ? 'Edit Product' : 'Add New Product'}
                </h3>
                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>

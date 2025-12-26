@@ -36,7 +36,7 @@ const CaptionGenerator: React.FC = () => {
       {/* Input Form */}
       <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit">
         <div className="flex items-center gap-2 mb-6">
-          <Sparkles className="w-6 h-6 text-purple-400" />
+          <Sparkles className="w-6 h-6 text-blue-400" />
           <h2 className="text-xl font-bold text-white">Trend Caption Generator</h2>
         </div>
         
@@ -47,7 +47,7 @@ const CaptionGenerator: React.FC = () => {
               required
               rows={3}
               placeholder="e.g. Unboxing the new iPhone 16 Pro Max..."
-              className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none"
+              className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
             />
@@ -60,7 +60,7 @@ const CaptionGenerator: React.FC = () => {
                 required
                 type="text"
                 placeholder="e.g. Tech Review"
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 value={niche}
                 onChange={(e) => setNiche(e.target.value)}
               />
@@ -68,7 +68,7 @@ const CaptionGenerator: React.FC = () => {
              <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">Tone</label>
               <select
-                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
               >
@@ -87,7 +87,7 @@ const CaptionGenerator: React.FC = () => {
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-white transition-all ${
               loading 
                 ? 'bg-gray-700 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-purple-500/25'
+                : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 shadow-lg hover:shadow-blue-500/25'
             }`}
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}

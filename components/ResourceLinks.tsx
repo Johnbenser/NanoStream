@@ -79,10 +79,10 @@ const ResourceLinks: React.FC = () => {
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
        {/* Header / Toolbar */}
-       <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-lg">
+       <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-lg">
          <div>
            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-             <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-2 rounded-lg shadow-lg">
+             <div className="bg-gradient-to-br from-blue-600 to-cyan-500 p-2 rounded-lg shadow-lg">
                 <LinkIcon className="w-5 h-5 text-white" />
              </div>
              Internal Links Directory
@@ -101,7 +101,7 @@ const ResourceLinks: React.FC = () => {
 
        {/* Links Grid */}
        {links.length === 0 ? (
-           <div className="p-16 text-center flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 rounded-2xl border border-gray-700 border-dashed">
+           <div className="p-16 text-center flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 rounded-2xl border border-gray-800 border-dashed backdrop-blur-sm">
              <div className="bg-gray-800 p-4 rounded-full mb-4 ring-1 ring-gray-700">
                 <Globe className="w-10 h-10 opacity-40" />
              </div>
@@ -111,14 +111,14 @@ const ResourceLinks: React.FC = () => {
          ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
              {links.map((link) => (
-               <div key={link.id} className="group bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-blue-500/30 rounded-2xl flex flex-col h-full transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 relative overflow-hidden">
+               <div key={link.id} className="group bg-gray-900/50 backdrop-blur-md hover:bg-gray-900 border border-gray-800 hover:border-blue-500/30 rounded-2xl flex flex-col h-full transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 relative overflow-hidden">
                 
                 {/* Decorative Header */}
-                <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500 w-full opacity-70 group-hover:opacity-100 transition-opacity"></div>
+                <div className="h-2 bg-gradient-to-r from-blue-500 to-cyan-400 w-full opacity-70 group-hover:opacity-100 transition-opacity"></div>
 
                 <div className="p-6 flex flex-col flex-1 relative z-10">
                     <div className="flex justify-between items-start mb-4">
-                        <div className="bg-gray-900 p-3 rounded-xl border border-gray-700 group-hover:border-blue-500/30 transition-colors shadow-inner">
+                        <div className="bg-gray-800 p-3 rounded-xl border border-gray-700 group-hover:border-blue-500/30 transition-colors shadow-inner">
                             <Globe className="w-6 h-6 text-blue-400" />
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -153,7 +153,7 @@ const ResourceLinks: React.FC = () => {
                             href={link.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2 w-full bg-gray-900 hover:bg-blue-600 text-gray-300 hover:text-white py-2.5 rounded-xl border border-gray-700 hover:border-blue-500/50 transition-all font-medium text-sm group/btn"
+                            className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-blue-600 text-gray-300 hover:text-white py-2.5 rounded-xl border border-gray-700 hover:border-blue-500/50 transition-all font-medium text-sm group/btn"
                         >
                             <LinkIcon className="w-3 h-3 text-blue-500 group-hover/btn:text-white" />
                             Visit {getDomain(link.url)}
@@ -172,10 +172,10 @@ const ResourceLinks: React.FC = () => {
        {/* Add/Edit Modal */}
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-          <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-hidden">
-            <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-900/80">
+          <div className="bg-gray-900/90 backdrop-blur-md rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/80">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  {editingId ? <Edit2 className="w-4 h-4 text-purple-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
+                  {editingId ? <Edit2 className="w-4 h-4 text-blue-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
                   {editingId ? 'Edit Resource' : 'Add New Resource'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5"/></button>

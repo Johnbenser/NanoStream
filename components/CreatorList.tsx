@@ -395,51 +395,51 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl flex items-center gap-2 text-purple-200 text-sm">
+      <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-center gap-2 text-blue-200 text-sm shadow-sm backdrop-blur-md">
         <Cloud className="w-4 h-4" />
         All changes are automatically synced to Firebase Cloud Database.
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
-        <div className="relative w-full xl:w-96">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-gray-900/50 backdrop-blur-md p-6 rounded-2xl border border-gray-800 shadow-xl">
+        <div className="relative w-full xl:w-96 group">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5 pointer-events-none group-hover:text-blue-400 transition-colors" />
           <input
             type="text"
             placeholder="Search name, username, or niche..."
-            className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-4 py-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            className="w-full bg-gray-800/80 border border-gray-700 text-white pl-10 pr-4 py-2.5 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:outline-none transition-all hover:bg-gray-800"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         
         <div className="flex flex-wrap gap-2 w-full xl:w-auto">
-          <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+          <div className="flex bg-gray-800/80 rounded-lg p-1 border border-gray-700">
             <button 
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded flex items-center gap-2 text-sm font-medium transition-colors ${viewMode === 'table' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              className={`p-2 rounded-md flex items-center gap-2 text-sm font-medium transition-all ${viewMode === 'table' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}`}
             >
               <TableIcon className="w-4 h-4" /> <span className="hidden sm:inline">Spreadsheet</span>
             </button>
             <button 
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded flex items-center gap-2 text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              className={`p-2 rounded-md flex items-center gap-2 text-sm font-medium transition-all ${viewMode === 'grid' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}`}
             >
               <LayoutGrid className="w-4 h-4" /> <span className="hidden sm:inline">Grid</span>
             </button>
           </div>
 
-          <div className="w-px h-8 bg-gray-700 mx-2 hidden xl:block"></div>
+          <div className="w-px h-8 bg-gray-800 mx-2 hidden xl:block"></div>
           
           <button onClick={handleExportExcel} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-green-900/20">
             <FileSpreadsheet className="w-4 h-4" /> Report
           </button>
 
-          <button onClick={handleExportCSV} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+          <button onClick={handleExportCSV} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-700">
             <FileText className="w-4 h-4" /> CSV
           </button>
           
-          <button onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-purple-900/20">
+          <button onClick={() => handleOpenModal()} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20">
             <Plus className="w-4 h-4" /> Add Creator
           </button>
         </div>
@@ -447,35 +447,35 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
 
       {/* Content Area */}
       {filteredCreators.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed">
+        <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed backdrop-blur-sm">
           <p>No creators found. Add one to start syncing.</p>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
           {filteredCreators.map((creator) => (
-            <div key={creator.id} className="bg-gray-800 rounded-xl border border-gray-700 p-6 hover:border-purple-500/50 transition-colors group">
+            <div key={creator.id} className="bg-gray-900/50 backdrop-blur-md rounded-2xl border border-gray-800 p-6 hover:border-blue-500/50 transition-colors group shadow-lg">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">{creator.name}</h3>
+                  <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">{creator.name}</h3>
                   {creator.username && (
                     <div className="flex items-center gap-1 text-sm text-gray-400 mt-0.5">
                       <UserIcon className="w-3 h-3" /> @{creator.username}
                     </div>
                   )}
                   <div className="flex gap-2 mt-2">
-                    <span className="inline-block bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
+                    <span className="inline-block bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded">
                       {creator.niche}
                     </span>
-                    <span className="inline-block bg-blue-900/50 text-blue-200 text-xs px-2 py-1 rounded border border-blue-500/20">
+                    <span className="inline-block bg-blue-900/30 text-blue-200 text-xs px-2 py-1 rounded border border-blue-500/20">
                       {creator.productCategory || 'Other'}
                     </span>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleOpenModal(creator)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors">
+                  <button onClick={() => handleOpenModal(creator)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={(e) => handleDeleteClick(creator.id, creator.name, e)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors">
+                  <button onClick={(e) => handleDeleteClick(creator.id, creator.name, e)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700/50 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -484,7 +484,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
               <div className="space-y-2 mb-6">
                  {/* Uploads History Preview */}
                  {creator.uploads && creator.uploads.length > 0 ? (
-                    <div className="bg-gray-900/50 p-2 rounded border border-gray-700/50">
+                    <div className="bg-gray-800/50 p-2 rounded border border-gray-700/50">
                         <div className="flex justify-between text-xs text-gray-400 mb-1">
                             <span className="truncate max-w-[150px] font-medium text-white">
                                 {creator.uploads[creator.uploads.length-1].title || "Latest Video"}
@@ -508,20 +508,20 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                  )}
               </div>
 
-              <div className="grid grid-cols-4 gap-2 py-4 border-t border-gray-700">
+              <div className="grid grid-cols-4 gap-2 py-4 border-t border-gray-800">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-gray-400 text-[10px] uppercase mb-1">
                     <Video className="w-3 h-3" /> Total Views
                   </div>
                   <span className="text-white font-bold text-sm">{creator.avgViews.toLocaleString()}</span>
                 </div>
-                <div className="text-center border-l border-gray-700">
+                <div className="text-center border-l border-gray-800">
                   <div className="flex items-center justify-center gap-1 text-gray-400 text-[10px] uppercase mb-1">
                     <Heart className="w-3 h-3" /> Total Likes
                   </div>
                   <span className="text-white font-bold text-sm">{creator.avgLikes.toLocaleString()}</span>
                 </div>
-                 <div className="text-center border-l border-gray-700">
+                 <div className="text-center border-l border-gray-800">
                    <div className="flex items-center justify-center gap-1 text-gray-400 text-[10px] uppercase mb-1">
                      <Share2 className="w-3 h-3" /> Total Share
                    </div>
@@ -530,7 +530,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                 <div className="text-center flex items-center justify-center">
                    <button 
                      onClick={() => openLibrary(creator)}
-                     className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-lg shadow-lg shadow-blue-900/20 transition-all text-xs"
+                     className="bg-blue-600/90 hover:bg-blue-500 text-white p-2 rounded-lg shadow-lg shadow-blue-900/20 transition-all text-xs"
                      title="Manage Videos"
                    >
                      Manage
@@ -541,10 +541,10 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
           ))}
         </div>
       ) : (
-        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden animate-fade-in shadow-xl">
+        <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden animate-fade-in shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-400">
-              <thead className="bg-gray-900 text-gray-200 uppercase font-medium border-b border-gray-700">
+              <thead className="bg-gray-800/80 text-gray-200 uppercase font-medium border-b border-gray-800">
                 <tr>
                   <th className="px-6 py-4">Creator</th>
                   <th className="px-6 py-4">Primary Niche</th>
@@ -555,20 +555,20 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                   <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-gray-800">
                 {filteredCreators.map((creator) => {
                   const latestUpload = creator.uploads && creator.uploads.length > 0 
                     ? creator.uploads[creator.uploads.length - 1] 
                     : null;
 
                   return (
-                  <tr key={creator.id} className="hover:bg-gray-750/50 transition-colors">
+                  <tr key={creator.id} className="hover:bg-gray-800/50 transition-colors">
                     <td className="px-6 py-4">
                         <div className="font-medium text-white">{creator.name}</div>
                         <div className="text-gray-500 text-xs">@{creator.username}</div>
                     </td>
                     <td className="px-6 py-4">
-                        <span className="text-xs bg-gray-700 px-2 py-1 rounded">{creator.productCategory}</span>
+                        <span className="text-xs bg-gray-800/80 px-2 py-1 rounded">{creator.productCategory}</span>
                     </td>
                     <td className="px-6 py-4">
                        {latestUpload ? (
@@ -600,7 +600,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-3">
-                        <button onClick={() => handleOpenModal(creator)} className="text-gray-500 hover:text-purple-400"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleOpenModal(creator)} className="text-gray-500 hover:text-blue-400"><Edit2 className="w-4 h-4" /></button>
                         <button onClick={(e) => handleDeleteClick(creator.id, creator.name, e)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
@@ -615,9 +615,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
       {/* VIDEO LIBRARY MODAL */}
       {libraryCreator && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-gray-800 rounded-xl w-full max-w-5xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+           <div className="bg-gray-900/90 backdrop-blur-md rounded-2xl w-full max-w-5xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                {/* Header */}
-               <div className="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
+               <div className="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/80">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                          <PlayCircle className="w-5 h-5 text-blue-400" /> Video Library
@@ -635,12 +635,12 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                   </div>
                </div>
                
-               <div className="overflow-y-auto flex-1 p-0 bg-gray-900">
+               <div className="overflow-y-auto flex-1 p-0 bg-gray-950/50">
                   {/* Internal Form for Add/Edit */}
                   {isVideoFormOpen && (
-                     <div className="p-6 bg-gray-800 border-b border-gray-700 animate-in slide-in-from-top-4">
+                     <div className="p-6 bg-gray-900/80 border-b border-gray-800 animate-in slide-in-from-top-4">
                         <h4 className="text-white font-bold mb-4 flex items-center gap-2">
-                            {editingVideoId ? <Edit2 className="w-4 h-4 text-purple-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
+                            {editingVideoId ? <Edit2 className="w-4 h-4 text-blue-400"/> : <Plus className="w-4 h-4 text-green-400"/>}
                             {editingVideoId ? 'Edit Video Details' : 'Log New Video'}
                         </h4>
                         <form onSubmit={saveVideo} className="space-y-4">
@@ -752,7 +752,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                         </thead>
                         <tbody className="divide-y divide-gray-800">
                            {[...libraryCreator.uploads].reverse().map((upload) => (
-                              <tr key={upload.id} className="hover:bg-gray-800/50 bg-gray-900">
+                              <tr key={upload.id} className="hover:bg-gray-800/50 bg-gray-900/50">
                                  <td className="px-6 py-3 font-medium text-white max-w-[200px] truncate">
                                      {upload.title || "Untitled Video"}
                                  </td>
@@ -777,7 +777,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                                     </a>
                                  </td>
                                  <td className="px-6 py-3 text-center flex items-center justify-center gap-3">
-                                    <button onClick={() => openVideoForm(upload)} className="text-gray-500 hover:text-purple-400" title="Edit Video">
+                                    <button onClick={() => openVideoForm(upload)} className="text-gray-500 hover:text-blue-400" title="Edit Video">
                                         <Edit2 className="w-4 h-4"/>
                                     </button>
                                     <button onClick={() => deleteVideo(upload.id)} className="text-gray-500 hover:text-red-400" title="Delete Video">
@@ -796,8 +796,8 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
 
       {/* Edit Creator Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-          <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-y-auto max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+          <div className="bg-gray-800/90 backdrop-blur-md rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="p-6 border-b border-gray-700 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">{editingId ? 'Edit Creator Profile' : 'Add New Creator'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
@@ -806,25 +806,25 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Full Name</label>
-                  <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  <input required type="text" className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
                  <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Username (@)</label>
-                  <input required type="text" placeholder="tiktok_user" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                  <input required type="text" placeholder="tiktok_user" className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
                 </div>
               </div>
 
                <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Niche</label>
-                  <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} />
+                  <input required type="text" className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} />
                 </div>
                  <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Primary Category</label>
                   <div className="relative">
                     <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                     <select 
-                      className="w-full bg-gray-900 border border-gray-700 text-white pl-9 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none"
+                      className="w-full bg-gray-900/80 border border-gray-700 text-white pl-9 pr-4 py-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none"
                       value={formData.productCategory}
                       onChange={e => setFormData({...formData, productCategory: e.target.value})}
                     >
@@ -839,17 +839,17 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Email</label>
-                  <input required type="email" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  <input required type="email" className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-gray-400 uppercase">Phone</label>
-                  <input required type="tel" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                  <input required type="tel" className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-700">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-300 hover:text-white transition-colors">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium shadow-lg shadow-purple-900/20 transition-all">Save Profile</button>
+                <button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-900/20 transition-all">Save Profile</button>
               </div>
             </form>
           </div>

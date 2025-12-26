@@ -328,7 +328,7 @@ const CollageMaker: React.FC = () => {
       <div className="lg:col-span-1 space-y-6">
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
            <div className="flex items-center gap-2 mb-4">
-             <LayoutGrid className="w-5 h-5 text-purple-400" />
+             <LayoutGrid className="w-5 h-5 text-blue-400" />
              <h3 className="font-bold text-white">Collage Settings</h3>
            </div>
            
@@ -340,7 +340,7 @@ const CollageMaker: React.FC = () => {
                 <div className="grid grid-cols-6 gap-2">
                     <button 
                         onClick={() => handleLayoutChange('single')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'single' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'single' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Single Image"
                     >
                         <ImageIcon className="w-5 h-5" />
@@ -348,7 +348,7 @@ const CollageMaker: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-3')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-3' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-3' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Hero Left (3)"
                     >
                         <PanelLeft className="w-5 h-5" />
@@ -356,7 +356,7 @@ const CollageMaker: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-4')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-4' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-4' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Classic 4"
                     >
                         <LayoutGrid className="w-5 h-5" />
@@ -364,7 +364,7 @@ const CollageMaker: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-5')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-5' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-5' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Hero Left (5)"
                     >
                         <LayoutPanelLeft className="w-5 h-5" />
@@ -372,7 +372,7 @@ const CollageMaker: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-7')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-7' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-7' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Hero Top (7)"
                     >
                         <LayoutPanelTop className="w-5 h-5" />
@@ -380,7 +380,7 @@ const CollageMaker: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-9')}
-                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-9' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-9' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
                         title="Grid 3x3 (9)"
                     >
                         <Grid3x3 className="w-5 h-5" />
@@ -394,21 +394,21 @@ const CollageMaker: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                    <button 
                      onClick={() => setAspectRatio('1:1')}
-                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '1:1' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '1:1' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
                    >
                       <Square className="w-5 h-5" />
                       <span className="text-xs">Square</span>
                    </button>
                    <button 
                      onClick={() => setAspectRatio('16:9')}
-                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '16:9' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '16:9' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
                    >
                       <Monitor className="w-5 h-5" />
                       <span className="text-xs">16:9</span>
                    </button>
                    <button 
                      onClick={() => setAspectRatio('9:16')}
-                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '9:16' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '9:16' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
                    >
                       <Smartphone className="w-5 h-5" />
                       <span className="text-xs">9:16</span>
@@ -446,7 +446,7 @@ const CollageMaker: React.FC = () => {
                             <input 
                                 type="text"
                                 placeholder={`Label for Image ${index + 1}`}
-                                className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-purple-500 outline-none"
+                                className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none"
                                 value={imageCaptions[index] || ''}
                                 onChange={(e) => {
                                     const newCaptions = [...imageCaptions];
@@ -467,7 +467,7 @@ const CollageMaker: React.FC = () => {
               <button 
                 onClick={generateCollage}
                 disabled={isGenerating || images.every(i => i === null)}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white py-3 rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5" />}
                 {isGenerating ? 'Merging...' : 'Download Reference Image'}
