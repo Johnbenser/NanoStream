@@ -15,6 +15,7 @@ import { db, auth, storage } from './firebase';
 import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
+const CLIENTS_COLLECTION = 'clients'; // New collection for Brand Clients
 const LOGS_COLLECTION = 'logs';
 const RESOURCES_COLLECTION = 'resources';
 const BRANDS_COLLECTION = 'brand_products';
@@ -36,6 +37,25 @@ export const subscribeToCreators = (
     onData(creators);
   }, (error) => {
     console.error("Firebase Creators Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+// New Subscription for Clients
+export const subscribeToClients = (
+  onData: (clients: Creator[]) => void, 
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, CLIENTS_COLLECTION), orderBy('lastUpdated', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const clients = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Creator[];
+    onData(clients);
+  }, (error) => {
+    console.error("Firebase Clients Sync Error:", error);
     if (onError) onError(error);
   });
 };
@@ -159,6 +179,39 @@ export const deleteCreator = async (id: string, name: string): Promise<void> => 
     addLog('DELETE', `Creator: ${name}`);
   } catch (e) {
     console.error("Error deleting creator:", e);
+    throw e;
+  }
+};
+
+// --- CLIENT ACTIONS ---
+export const saveClient = async (data: CreatorFormData, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      const clientRef = doc(db, CLIENTS_COLLECTION, id);
+      await updateDoc(clientRef, {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
+      addLog('UPDATE', `Client: ${data.name}`);
+    } else {
+      await addDoc(collection(db, CLIENTS_COLLECTION), {
+        ...data,
+        lastUpdated: new Date().toISOString()
+      });
+      addLog('CREATE', `Client: ${data.name}`);
+    }
+  } catch (e) {
+    console.error("Error saving client:", e);
+    throw e;
+  }
+};
+
+export const deleteClient = async (id: string, name: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, CLIENTS_COLLECTION, id));
+    addLog('DELETE', `Client: ${name}`);
+  } catch (e) {
+    console.error("Error deleting client:", e);
     throw e;
   }
 };

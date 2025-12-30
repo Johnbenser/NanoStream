@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, LayoutGrid, Table as TableIcon,
   AlertTriangle, ExternalLink, Save, X, FileText, 
-  Cloud, User as UserIcon, Tag, PlayCircle, Share2, Heart, Video, Type, Clipboard, Calendar, FileSpreadsheet
+  Cloud, User as UserIcon, Tag, PlayCircle, Share2, Heart, Video, Type, Clipboard, Calendar, FileSpreadsheet, DollarSign, Clock, Eye
 } from 'lucide-react';
 import { Creator, CreatorFormData, VideoUpload } from '../types';
 import { saveCreator, deleteCreator } from '../services/storageService';
@@ -35,7 +35,10 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
   // Video Library / Manager State
   const [libraryCreator, setLibraryCreator] = useState<Creator | null>(null);
   const [videoFormData, setVideoFormData] = useState<Partial<VideoUpload>>({
-    title: '', url: '', product: 'Maikalian', views: 0, likes: 0, comments: 0, shares: 0, dateAdded: new Date().toISOString().split('T')[0]
+    title: '', url: '', product: 'Maikalian', productName: '',
+    views: 0, likes: 0, comments: 0, shares: 0,
+    newFollowers: 0, avgWatchTime: '', watchedFullVideo: 0, itemsSold: 0,
+    dateAdded: new Date().toISOString().split('T')[0]
   });
   const [isVideoFormOpen, setIsVideoFormOpen] = useState(false);
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
@@ -109,8 +112,9 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
     } else {
         setEditingVideoId(null);
         setVideoFormData({ 
-            title: '', url: '', product: 'Maikalian', 
+            title: '', url: '', product: 'Maikalian', productName: '',
             views: 0, likes: 0, comments: 0, shares: 0,
+            newFollowers: 0, avgWatchTime: '', watchedFullVideo: 0, itemsSold: 0,
             dateAdded: new Date().toISOString().split('T')[0]
         });
     }
@@ -146,10 +150,15 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
             title: videoFormData.title || 'Untitled Video',
             url: videoFormData.url || '',
             product: videoFormData.product || 'Maikalian',
+            productName: videoFormData.productName,
             views: videoFormData.views || 0,
             likes: videoFormData.likes || 0,
             comments: videoFormData.comments || 0,
-            shares: videoFormData.shares || 0
+            shares: videoFormData.shares || 0,
+            newFollowers: videoFormData.newFollowers,
+            avgWatchTime: videoFormData.avgWatchTime,
+            watchedFullVideo: videoFormData.watchedFullVideo,
+            itemsSold: videoFormData.itemsSold
         };
         updatedUploads.push(newVideo);
     }
@@ -693,7 +702,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                                 </div>
                                 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400 uppercase">Product Label</label>
+                                    <label className="text-xs font-medium text-gray-400 uppercase">Brand / Category</label>
                                     <select 
                                         className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         value={videoFormData.product}
@@ -702,25 +711,60 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                                         {PRODUCT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
                                 </div>
-                                <div className="hidden md:block"></div> {/* Spacer */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-medium text-gray-400 uppercase">Specific Product Name</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. Red Curtain 140cm"
+                                        className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        value={videoFormData.productName || ''}
+                                        onChange={e => setVideoFormData({...videoFormData, productName: e.target.value})}
+                                    />
+                                </div>
 
                                 {/* Stats Inputs */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400 uppercase">Views</label>
-                                    <input type="number" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2" value={videoFormData.views} onChange={e => setVideoFormData({...videoFormData, views: Number(e.target.value)})} />
+                                <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-900/50 p-4 rounded-lg">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Views</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.views} onChange={e => setVideoFormData({...videoFormData, views: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Likes</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.likes} onChange={e => setVideoFormData({...videoFormData, likes: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Comments</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.comments} onChange={e => setVideoFormData({...videoFormData, comments: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Shares</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.shares} onChange={e => setVideoFormData({...videoFormData, shares: Number(e.target.value)})} />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400 uppercase">Likes</label>
-                                    <input type="number" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2" value={videoFormData.likes} onChange={e => setVideoFormData({...videoFormData, likes: Number(e.target.value)})} />
+
+                                {/* Detailed Stats */}
+                                <div className="col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 bg-blue-900/10 p-4 rounded-lg border border-blue-500/20">
+                                    <div className="col-span-2 md:col-span-4 text-xs font-bold text-blue-400 uppercase mb-1 flex items-center gap-2">
+                                        <DollarSign className="w-3 h-3"/> Sales & Engagement Details
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Followers +</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.newFollowers} onChange={e => setVideoFormData({...videoFormData, newFollowers: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Avg Watch</label>
+                                        <input type="text" placeholder="0:00" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.avgWatchTime} onChange={e => setVideoFormData({...videoFormData, avgWatchTime: e.target.value})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Watched %</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded" value={videoFormData.watchedFullVideo} onChange={e => setVideoFormData({...videoFormData, watchedFullVideo: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-green-500 uppercase">Items Sold</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-green-900/50 text-white p-2 rounded focus:border-green-500" value={videoFormData.itemsSold} onChange={e => setVideoFormData({...videoFormData, itemsSold: Number(e.target.value)})} />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400 uppercase">Comments</label>
-                                    <input type="number" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2" value={videoFormData.comments} onChange={e => setVideoFormData({...videoFormData, comments: Number(e.target.value)})} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400 uppercase">Shares</label>
-                                    <input type="number" className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2" value={videoFormData.shares} onChange={e => setVideoFormData({...videoFormData, shares: Number(e.target.value)})} />
-                                </div>
+
                              </div>
                              <div className="flex justify-end gap-3 pt-4">
                                 <button type="button" onClick={() => setIsVideoFormOpen(false)} className="text-gray-400 hover:text-white text-sm">Cancel</button>
@@ -744,8 +788,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                               <th className="px-6 py-3">Product</th>
                               <th className="px-6 py-3">Upload Date</th>
                               <th className="px-6 py-3 text-right">Views</th>
-                              <th className="px-6 py-3 text-right">Likes</th>
-                              <th className="px-6 py-3 text-right">Shares</th>
+                              <th className="px-6 py-3 text-right">Sold</th>
                               <th className="px-6 py-3">Link</th>
                               <th className="px-6 py-3 text-center">Actions</th>
                            </tr>
@@ -755,6 +798,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                               <tr key={upload.id} className="hover:bg-gray-800/50 bg-gray-900">
                                  <td className="px-6 py-3 font-medium text-white max-w-[200px] truncate">
                                      {upload.title || "Untitled Video"}
+                                     {upload.productName && <div className="text-[10px] text-gray-500">{upload.productName}</div>}
                                  </td>
                                  <td className="px-6 py-3">
                                     <span className={`text-xs px-2 py-1 rounded border ${
@@ -769,8 +813,7 @@ const CreatorList: React.FC<CreatorListProps> = ({ creators, currentUser }) => {
                                      {upload.dateAdded ? new Date(upload.dateAdded).toLocaleDateString() : '-'}
                                  </td>
                                  <td className="px-6 py-3 text-right text-gray-300 font-mono">{upload.views.toLocaleString()}</td>
-                                 <td className="px-6 py-3 text-right text-gray-300 font-mono">{upload.likes.toLocaleString()}</td>
-                                 <td className="px-6 py-3 text-right text-gray-300 font-mono">{upload.shares ? upload.shares.toLocaleString() : 0}</td>
+                                 <td className="px-6 py-3 text-right font-mono text-green-400">{upload.itemsSold || '-'}</td>
                                  <td className="px-6 py-3">
                                     <a href={upload.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs flex items-center gap-1 w-fit">
                                        Link <ExternalLink className="w-3 h-3" />

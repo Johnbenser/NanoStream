@@ -6,9 +6,10 @@ import { auth, db } from './services/firebase';
 import { logout } from './services/authService'; // Import logout
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
-import CreatorList from './components/CreatorList';
+import ClientList from './components/ClientList'; // Import new ClientList
 import CaptionGenerator from './components/CaptionGenerator';
 import CollageMaker from './components/CollageMaker';
+import CreditTracker from './components/CreditTracker';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
 import ResourceLinks from './components/ResourceLinks';
@@ -16,12 +17,13 @@ import BrandManager from './components/BrandManager';
 import ReportedContent from './components/ReportedContent'; 
 import Login from './components/Login';
 import { ViewState, Creator, ReportedVideo } from './types';
-import { subscribeToCreators, subscribeToReports } from './services/storageService';
-import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid } from 'lucide-react';
+import { subscribeToCreators, subscribeToClients, subscribeToReports } from './services/storageService';
+import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [clients, setClients] = useState<Creator[]>([]); // New State for Clients
   const [reports, setReports] = useState<ReportedVideo[]>([]);
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<'ADMIN' | 'EDITOR' | 'CSR'>('EDITOR');
@@ -29,7 +31,7 @@ const App: React.FC = () => {
   const [dbError, setDbError] = useState<string | null>(null);
 
   // Sub-navigation state for Tools View
-  const [activeTool, setActiveTool] = useState<'caption' | 'collage'>('caption');
+  const [activeTool, setActiveTool] = useState<'caption' | 'collage' | 'transparency'>('caption');
 
   // 1. Auth Listener Effect
   useEffect(() => {
@@ -50,7 +52,8 @@ const App: React.FC = () => {
         setUser(firebaseUser);
       } else {
         setUser(null);
-        setCreators([]); // Clear data on logout
+        setCreators([]); 
+        setClients([]); // Clear clients
         setReports([]);
       }
       setLoading(false);
@@ -76,6 +79,16 @@ const App: React.FC = () => {
       }
     );
 
+    // Clients Subscription (New)
+    const unsubscribeClients = subscribeToClients(
+      (data) => {
+        setClients(data);
+      },
+      (error) => {
+        console.error("DB Error Clients:", error);
+      }
+    );
+
     // Reports Subscription (Added for Dashboard graphs)
     const unsubscribeReports = subscribeToReports(
       (data) => {
@@ -83,12 +96,12 @@ const App: React.FC = () => {
       },
       (error) => {
          console.error("DB Error Reports:", error);
-         // Optional: Don't overwrite main DB error if creators failed already
       }
     );
 
     return () => {
       unsubscribeCreators();
+      unsubscribeClients();
       unsubscribeReports();
     };
   }, [user]); 
@@ -207,21 +220,22 @@ const App: React.FC = () => {
         </>
       )}
 
-      {activeView === ViewState.CREATORS && (
+      {/* New Client Brand Section */}
+      {activeView === ViewState.CLIENTS && (
          <>
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white">Creator Database</h2>
-            <p className="text-gray-400 mt-2">Live-synced database of all creators.</p>
+            <h2 className="text-3xl font-bold text-white">Client Workspaces</h2>
+            <p className="text-gray-400 mt-2">Manage Brand Clients and track AI video performance.</p>
           </div>
-          <CreatorList creators={creators} currentUser={user.email} />
+          <ClientList clients={clients} currentUser={user.email} />
         </>
       )}
 
       {activeView === ViewState.BRANDS && (
          <>
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-white">Brands</h2>
-            <p className="text-gray-400 mt-2">Product inventory and shop links.</p>
+            <h2 className="text-3xl font-bold text-white">Product Inventory</h2>
+            <p className="text-gray-400 mt-2">Manage products and shop links.</p>
           </div>
           <BrandManager />
         </>
@@ -246,23 +260,29 @@ const App: React.FC = () => {
             </div>
             
             {/* Tool Switcher */}
-            <div className="bg-gray-800 p-1 rounded-lg border border-gray-700 flex">
+            <div className="bg-gray-800 p-1 rounded-lg border border-gray-700 flex overflow-x-auto max-w-full">
                <button 
                  onClick={() => setActiveTool('caption')}
-                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTool === 'caption' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'caption' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
                >
                  <Sparkles className="w-4 h-4" /> Caption AI
                </button>
                <button 
                  onClick={() => setActiveTool('collage')}
-                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTool === 'collage' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'collage' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
                >
                  <LayoutGrid className="w-4 h-4" /> Collage Maker
+               </button>
+               <button 
+                 onClick={() => setActiveTool('transparency')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'transparency' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <Scale className="w-4 h-4" /> Credit Tracker
                </button>
             </div>
           </div>
           
-          {activeTool === 'caption' ? <CaptionGenerator /> : <CollageMaker />}
+          {activeTool === 'caption' ? <CaptionGenerator /> : activeTool === 'collage' ? <CollageMaker /> : <CreditTracker />}
         </>
       )}
 

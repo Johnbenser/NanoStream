@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Trash2, Image as ImageIcon, LayoutGrid, Monitor, Smartphone, RefreshCw, Type, Sparkles, AlertCircle, Grid3x3, Square, LayoutPanelLeft, LayoutPanelTop, PanelLeft } from 'lucide-react';
+import { Upload, Download, Trash2, Image as ImageIcon, LayoutGrid, Monitor, Smartphone, RefreshCw, Type, Sparkles, AlertCircle, Grid3x3, Square, LayoutPanelLeft, LayoutPanelTop, PanelLeft, MoreVertical, FileUp } from 'lucide-react';
 import { analyzeProductImages } from '../services/geminiService';
 
-type LayoutType = 'single' | 'grid-3' | 'grid-4' | 'grid-5' | 'grid-7' | 'grid-9';
+type LayoutType = 'single' | 'grid-3' | 'grid-4' | 'grid-5' | 'grid-6' | 'grid-7' | 'grid-9';
 
 const CollageMaker: React.FC = () => {
   const [layout, setLayout] = useState<LayoutType>('grid-4');
@@ -12,11 +12,25 @@ const CollageMaker: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('1:1');
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // Dropdown / Menu State
+  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  
+  // Drag and Drop State
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  
   // Nano Banana / Overlay State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setActiveDropdown(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const handleLayoutChange = (newLayout: LayoutType) => {
     setLayout(newLayout);
@@ -24,6 +38,7 @@ const CollageMaker: React.FC = () => {
     if (newLayout === 'single') count = 1;
     if (newLayout === 'grid-3') count = 3;
     if (newLayout === 'grid-5') count = 5;
+    if (newLayout === 'grid-6') count = 6;
     if (newLayout === 'grid-7') count = 7;
     if (newLayout === 'grid-9') count = 9;
 
@@ -51,16 +66,67 @@ const CollageMaker: React.FC = () => {
       const newImages = [...images];
       newImages[index] = imageUrl;
       setImages(newImages);
+      setActiveDropdown(null); // Close menu after selection
     }
   };
 
-  const removeImage = (index: number) => {
+  // --- Drag and Drop Handlers ---
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Check if we are actually leaving the container (and not just entering a child element)
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverIndex(null);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/')) {
+        const imageUrl = URL.createObjectURL(file);
+        const newImages = [...images];
+        newImages[index] = imageUrl;
+        setImages(newImages);
+      }
+    }
+  };
+  // ------------------------------
+
+  const triggerUpload = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent closing dropdown immediately
+    fileInputRefs.current[index]?.click();
+    setActiveDropdown(null);
+  };
+
+  const removeImage = (index: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const newImages = [...images];
     newImages[index] = null;
     const newCaptions = [...imageCaptions];
     newCaptions[index] = '';
     setImages(newImages);
     setImageCaptions(newCaptions);
+    setActiveDropdown(null);
+  };
+
+  const toggleDropdown = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent window click listener from closing it immediately
+    setActiveDropdown(activeDropdown === index ? null : index);
   };
 
   const handleNanoBananaAnalysis = async () => {
@@ -155,7 +221,15 @@ const CollageMaker: React.FC = () => {
             const subRow = Math.floor(subIndex / 2);
             return { x: (totalW / 2) + (subCol * subW), y: subRow * subH, w: subW, h: subH };
         }
-    } 
+    }
+    else if (layout === 'grid-6') {
+        // 3 Cols x 2 Rows Uniform
+        const w = totalW / 3;
+        const h = totalH / 2;
+        const col = index % 3;
+        const row = Math.floor(index / 3);
+        return { x: col * w, y: row * h, w, h };
+    }
     else if (layout === 'grid-7') {
         // 0: Top Half (Hero)
         // 1-6: Bottom Half (3 cols x 2 rows)
@@ -301,6 +375,7 @@ const CollageMaker: React.FC = () => {
         case 'grid-4': return 'grid-cols-2 grid-rows-2';
         case 'grid-9': return 'grid-cols-3 grid-rows-3';
         case 'grid-5': return 'grid-cols-4 grid-rows-2'; // 1 Hero (2x2), 4 Small
+        case 'grid-6': return 'grid-cols-3 grid-rows-2'; // 3x2 uniform
         case 'grid-7': return 'grid-cols-3 grid-rows-4'; // 1 Hero Top (3x2), 6 Small (3x2) - effectively 4 rows high
         default: return 'grid-cols-2';
     }
@@ -369,6 +444,14 @@ const CollageMaker: React.FC = () => {
                     >
                         <LayoutPanelLeft className="w-5 h-5" />
                         <span className="text-[10px]">5</span>
+                    </button>
+                    <button 
+                        onClick={() => handleLayoutChange('grid-6')}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-all ${layout === 'grid-6' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}
+                        title="Grid 3x2 (6)"
+                    >
+                        <Grid3x3 className="w-5 h-5" />
+                        <span className="text-[10px]">6</span>
                     </button>
                     <button 
                         onClick={() => handleLayoutChange('grid-7')}
@@ -481,33 +564,98 @@ const CollageMaker: React.FC = () => {
         <div className={`bg-gray-900 border-2 border-dashed border-gray-700 rounded-xl p-4 aspect-square ${aspectRatio === '16:9' ? 'aspect-video' : aspectRatio === '9:16' ? 'aspect-[9/16]' : ''} transition-all duration-300 relative group/preview`}>
            <div className={`grid h-full gap-1 ${getGridClass()}`}>
               {images.map((_, index) => (
-                <div key={index} className={`relative bg-gray-800 rounded-lg overflow-hidden group border border-gray-700 ${getCellClass(index)}`}>
+                <div 
+                   key={index} 
+                   className={`
+                      relative bg-gray-800 rounded-lg overflow-hidden border border-gray-700 
+                      ${getCellClass(index)} 
+                      ${dragOverIndex === index ? 'border-purple-500 bg-gray-750 ring-2 ring-purple-500/50 scale-[0.98] opacity-80' : 'hover:border-gray-500'}
+                      transition-all duration-200
+                   `}
+                   onDragOver={handleDragOver}
+                   onDragEnter={(e) => handleDragEnter(e, index)}
+                   onDragLeave={(e) => handleDragLeave(e, index)}
+                   onDrop={(e) => handleDrop(e, index)}
+                >
                    {images[index] ? (
                      <>
-                        <img src={images[index]!} alt={`Slot ${index}`} className="w-full h-full object-cover" />
+                        <img src={images[index]!} alt={`Slot ${index}`} className="w-full h-full object-cover pointer-events-none" />
                         
-                        {/* Remove Button Overlay */}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                           <button onClick={() => removeImage(index)} className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors shadow-lg">
-                              <Trash2 className="w-4 h-4" />
+                        {/* Dropdown Menu Trigger */}
+                        <div className="absolute top-2 right-2 z-30">
+                           <button 
+                             onClick={(e) => toggleDropdown(index, e)} 
+                             className="p-1.5 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors backdrop-blur-sm"
+                           >
+                              <MoreVertical className="w-4 h-4" />
                            </button>
+
+                           {activeDropdown === index && (
+                             <div className="absolute right-0 mt-2 w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden z-40 animate-in fade-in zoom-in-95 duration-100">
+                                <button 
+                                  onClick={(e) => triggerUpload(index, e)}
+                                  className="w-full text-left px-4 py-2 text-xs font-medium text-gray-200 hover:bg-gray-700 hover:text-white flex items-center gap-2"
+                                >
+                                  <FileUp className="w-3 h-3" /> Replace Image
+                                </button>
+                                <button 
+                                  onClick={(e) => removeImage(index, e)}
+                                  className="w-full text-left px-4 py-2 text-xs font-medium text-red-400 hover:bg-gray-700 hover:text-red-300 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Remove
+                                </button>
+                             </div>
+                           )}
                         </div>
                         
                         {/* Caption Preview Overlay */}
                         {imageCaptions[index] && (
-                            <div className="absolute bottom-2 left-2 z-10 bg-black/70 px-2 py-1 rounded text-xs text-white backdrop-blur-sm max-w-[90%] truncate">
+                            <div className="absolute bottom-2 left-2 z-10 bg-black/70 px-2 py-1 rounded text-xs text-white backdrop-blur-sm max-w-[90%] truncate pointer-events-none">
                                 {imageCaptions[index]}
                             </div>
                         )}
                      </>
                    ) : (
-                     <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-gray-750 transition-colors">
-                        <div className="bg-gray-700 p-2 rounded-full mb-1">
-                           <Upload className="w-4 h-4 text-gray-400" />
+                     <div className="w-full h-full relative">
+                        {/* Standard Click Area */}
+                        <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-gray-750 transition-colors">
+                            <div className={`p-2 rounded-full mb-1 transition-all ${dragOverIndex === index ? 'bg-purple-600 text-white animate-bounce' : 'bg-gray-700 text-gray-400'}`}>
+                                <Upload className="w-4 h-4" />
+                            </div>
+                            <span className={`font-medium text-xs transition-colors ${dragOverIndex === index ? 'text-purple-300' : 'text-gray-500'}`}>
+                                {dragOverIndex === index ? 'Drop here' : `#${index + 1}`}
+                            </span>
+                            {/* Hidden Input controlled by both Label click and Dropdown */}
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                ref={el => { if (el) fileInputRefs.current[index] = el; }}
+                                onChange={(e) => handleImageUpload(e, index)} 
+                            />
+                        </label>
+
+                        {/* Dropdown Menu Trigger for Empty State (Explicit Upload Option) */}
+                        <div className="absolute top-2 right-2 z-30">
+                           <button 
+                             onClick={(e) => toggleDropdown(index, e)} 
+                             className="p-1.5 bg-gray-700/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-full transition-colors"
+                           >
+                              <MoreVertical className="w-4 h-4" />
+                           </button>
+
+                           {activeDropdown === index && (
+                             <div className="absolute right-0 mt-2 w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden z-40 animate-in fade-in zoom-in-95 duration-100">
+                                <button 
+                                  onClick={(e) => triggerUpload(index, e)}
+                                  className="w-full text-left px-4 py-2 text-xs font-medium text-blue-400 hover:bg-gray-700 hover:text-blue-300 flex items-center gap-2"
+                                >
+                                  <FileUp className="w-3 h-3" /> Upload Image
+                                </button>
+                             </div>
+                           )}
                         </div>
-                        <span className="text-gray-500 font-medium text-xs">#{index + 1}</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, index)} />
-                     </label>
+                     </div>
                    )}
                    <div className="absolute top-1 left-1 bg-black/50 px-1.5 py-0.5 rounded text-[8px] text-white font-mono pointer-events-none z-0">
                       #{index + 1}

@@ -1,14 +1,21 @@
 
 export interface VideoUpload {
   id: string;
-  title: string; // New field for easy tracking
+  title: string; 
   url: string;
-  product: string; // 'Maikalian', 'Xmas Curtain', 'Tshirt'
+  product: string; // Acts as Category (e.g. 'Maikalian', 'Xmas Curtain')
+  productName?: string; // Specific item name
   views: number;
   likes: number;
   comments: number;
   shares: number;
   dateAdded: string;
+  
+  // Advanced Brand Metrics
+  newFollowers?: number;
+  avgWatchTime?: string; // e.g. "15s" or "0:15"
+  watchedFullVideo?: number; // percentage (0-100)
+  itemsSold?: number;
 }
 
 export interface Creator {
@@ -20,6 +27,7 @@ export interface Creator {
   email: string;
   phone: string;
   videoLink?: string; // Legacy field, kept for backward compat
+  tiktokLink?: string; // New field for Client Brand Profile
   uploads?: VideoUpload[]; // New field for detailed tracking
   avgViews: number;
   avgLikes: number;
@@ -37,6 +45,7 @@ export interface CreatorFormData {
   email: string;
   phone: string;
   videoLink?: string;
+  tiktokLink?: string;
   uploads?: VideoUpload[];
   avgViews: number;
   avgLikes: number;
@@ -118,6 +127,7 @@ export interface User {
 
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
+  CLIENTS = 'CLIENTS', // New Client Brand Section
   CREATORS = 'CREATORS',
   BRANDS = 'BRANDS',
   TOOLS = 'TOOLS',
