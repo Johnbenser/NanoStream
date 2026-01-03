@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -106,13 +105,13 @@ const App: React.FC = () => {
     };
   }, [user]); 
 
-  // 3. Session Timeout Enforcement (30 Minutes)
+  // 3. Session Timeout Enforcement (8 Hours)
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
 
     if (user) {
       const SESSION_KEY = 'gml_session_start';
-      const LIMIT_MS = 30 * 60 * 1000; // 30 minutes
+      const LIMIT_MS = 8 * 60 * 60 * 1000; // 8 hours
 
       let startTime = sessionStorage.getItem(SESSION_KEY);
       
@@ -127,7 +126,7 @@ const App: React.FC = () => {
 
       // Set logout timer
       timeoutId = setTimeout(async () => {
-        alert("Session limit reached (30 minutes). You have been logged out.");
+        alert("Session limit reached (8 hours). You have been logged out.");
         await logout();
         sessionStorage.removeItem(SESSION_KEY);
         // The onAuthStateChanged will handle setting user to null

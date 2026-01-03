@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Lock, User, ArrowRight, UserPlus, Key, Globe } from 'lucide-react';
 import { login, register } from '../services/authService';
+import { addLog } from '../services/storageService';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -29,12 +29,15 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     try {
       if (isLogin) {
         await login(syntheticEmail, password);
+        // Log the successful login
+        await addLog('LOGIN', `User Login: ${username}`);
       } else {
         // Validation for Account Key
         if (accountKey !== 'GMLIVE') {
           throw new Error('Invalid Account Key. Access Denied.');
         }
         await register(syntheticEmail, password, username);
+        await addLog('LOGIN', `New Account Created: ${username}`);
       }
       onLoginSuccess();
     } catch (err: any) {
