@@ -9,7 +9,7 @@ const CollageMaker: React.FC = () => {
   const [layout, setLayout] = useState<LayoutType>('grid-4');
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
   const [imageCaptions, setImageCaptions] = useState<string[]>(['', '', '', '']);
-  const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('1:1');
+  const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '1056:4032'>('1:1');
   const [isGenerating, setIsGenerating] = useState(false);
   
   // Dropdown / Menu State
@@ -265,6 +265,9 @@ const CollageMaker: React.FC = () => {
     } else if (aspectRatio === '9:16') {
       width = 2160;
       height = 3840;
+    } else if (aspectRatio === '1056:4032') {
+      width = 1056;
+      height = 4032;
     }
 
     canvas.width = width;
@@ -474,7 +477,7 @@ const CollageMaker: React.FC = () => {
 
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Output Aspect Ratio</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                    <button 
                      onClick={() => setAspectRatio('1:1')}
                      className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '1:1' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
@@ -495,6 +498,13 @@ const CollageMaker: React.FC = () => {
                    >
                       <Smartphone className="w-5 h-5" />
                       <span className="text-xs">9:16</span>
+                   </button>
+                   <button 
+                     onClick={() => setAspectRatio('1056:4032')}
+                     className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${aspectRatio === '1056:4032' ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                   >
+                      <Smartphone className="w-5 h-5 scale-y-125" />
+                      <span className="text-[10px] text-center leading-none">Tall<br/>1056x4032</span>
                    </button>
                 </div>
               </div>
@@ -561,7 +571,7 @@ const CollageMaker: React.FC = () => {
 
       {/* Grid Editor */}
       <div className="lg:col-span-2">
-        <div className={`bg-gray-900 border-2 border-dashed border-gray-700 rounded-xl p-4 aspect-square ${aspectRatio === '16:9' ? 'aspect-video' : aspectRatio === '9:16' ? 'aspect-[9/16]' : ''} transition-all duration-300 relative group/preview`}>
+        <div className={`bg-gray-900 border-2 border-dashed border-gray-700 rounded-xl p-4 aspect-square ${aspectRatio === '16:9' ? 'aspect-video' : aspectRatio === '9:16' ? 'aspect-[9/16]' : aspectRatio === '1056:4032' ? 'aspect-[1056/4032]' : ''} transition-all duration-300 relative group/preview`}>
            <div className={`grid h-full gap-1 ${getGridClass()}`}>
               {images.map((_, index) => (
                 <div 

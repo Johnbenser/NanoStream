@@ -9,15 +9,18 @@ import ClientList from './components/ClientList'; // Import new ClientList
 import CaptionGenerator from './components/CaptionGenerator';
 import CollageMaker from './components/CollageMaker';
 import CreditTracker from './components/CreditTracker';
+import FGSoraReporter from './components/FGSoraReporter'; // Import New Tool
+import ContentPlanner from './components/ContentPlanner';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
 import ResourceLinks from './components/ResourceLinks';
 import BrandManager from './components/BrandManager'; 
 import ReportedContent from './components/ReportedContent'; 
+import ViralReportGenerator from './components/ViralReportGenerator'; // New Import
 import Login from './components/Login';
 import { ViewState, Creator, ReportedVideo } from './types';
 import { subscribeToCreators, subscribeToClients, subscribeToReports } from './services/storageService';
-import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale, Bug } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -30,7 +33,7 @@ const App: React.FC = () => {
   const [dbError, setDbError] = useState<string | null>(null);
 
   // Sub-navigation state for Tools View
-  const [activeTool, setActiveTool] = useState<'caption' | 'collage' | 'transparency'>('caption');
+  const [activeTool, setActiveTool] = useState<'caption' | 'collage' | 'transparency' | 'fgsora'>('caption');
 
   // 1. Auth Listener Effect
   useEffect(() => {
@@ -250,6 +253,10 @@ const App: React.FC = () => {
         </>
       )}
 
+      {activeView === ViewState.VIRAL_REPORT && (
+        <ViralReportGenerator />
+      )}
+
       {activeView === ViewState.TOOLS && (
          <>
           <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -278,11 +285,24 @@ const App: React.FC = () => {
                >
                  <Scale className="w-4 h-4" /> Credit Tracker
                </button>
+               <button 
+                 onClick={() => setActiveTool('fgsora')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'fgsora' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <Bug className="w-4 h-4 text-red-400" /> FG SORA Report
+               </button>
             </div>
           </div>
           
-          {activeTool === 'caption' ? <CaptionGenerator /> : activeTool === 'collage' ? <CollageMaker /> : <CreditTracker />}
+          {activeTool === 'caption' ? <CaptionGenerator /> : 
+           activeTool === 'collage' ? <CollageMaker /> : 
+           activeTool === 'transparency' ? <CreditTracker /> : 
+           <FGSoraReporter />}
         </>
+      )}
+
+      {activeView === ViewState.PLANNER && (
+        <ContentPlanner clients={clients} />
       )}
 
       {activeView === ViewState.LINKS && (

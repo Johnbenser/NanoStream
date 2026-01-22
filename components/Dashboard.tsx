@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  ComposedChart, Line, Legend, ScatterChart, Scatter, ZAxis, PieChart, Pie, Cell
+  ComposedChart, Line, Legend, ScatterChart, Scatter, ZAxis, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { Loader2, Brain, TrendingUp, Users, RefreshCw, ShoppingBag, Filter, MessageCircle, Share2, BarChart2, Zap, User, ShieldAlert, Video, Plus, Search, Calendar, ExternalLink, X, DollarSign, Clock, Eye } from 'lucide-react';
+import { Loader2, Brain, TrendingUp, Users, RefreshCw, ShoppingBag, Filter, MessageCircle, Share2, BarChart2, Zap, User, ShieldAlert, Video, Plus, Search, Calendar, ExternalLink, X, DollarSign, Clock, Eye, Activity, Heart, Globe } from 'lucide-react';
 import { Creator, AnalysisResult, ReportedVideo, VideoUpload } from '../types';
 import { analyzeCreatorData } from '../services/geminiService';
 import { saveCreator } from '../services/storageService';
@@ -74,15 +73,11 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
     }
   };
 
-  // Re-run AI analysis when filter changes or data updates
+  // Reset analysis when data changes, but DO NOT auto-generate
   useEffect(() => {
-    if (viewMode === 'analytics') {
-        const timer = setTimeout(() => {
-            fetchAnalysis();
-        }, 500); 
-        return () => clearTimeout(timer);
-    }
-  }, [creators, selectedProduct, selectedCreatorId, viewMode]);
+    setAnalysis(null);
+    setError(null);
+  }, [creators, selectedProduct, selectedCreatorId]);
 
   // --- DATA AGGREGATION LOGIC ---
 
@@ -90,6 +85,38 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
   let totalLikes = 0;
   let totalComments = 0;
   let totalShares = 0;
+  let totalItemsSold = 0;
+  
+  // Watch Time Calculation Variables
+  let totalWatchSeconds = 0;
+  let videosWithWatchTimeCount = 0;
+
+  // Helper to parse time string (e.g. "0:15" or "15s") to seconds
+  const parseWatchTime = (timeStr?: string): number => {
+    if (!timeStr) return 0;
+    try {
+        // Handle "MM:SS" format
+        if (timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            const min = parseInt(parts[0], 10) || 0;
+            const sec = parseInt(parts[1], 10) || 0;
+            return (min * 60) + sec;
+        }
+        // Handle "15s" or raw number
+        const num = parseInt(timeStr.replace(/[^0-9]/g, ''), 10);
+        return isNaN(num) ? 0 : num;
+    } catch (e) {
+        return 0;
+    }
+  };
+
+  // Helper to format seconds back to MM:SS
+  const formatSeconds = (totalSeconds: number): string => {
+    if (totalSeconds === 0) return "0:00";
+    const m = Math.floor(totalSeconds / 60);
+    const s = Math.round(totalSeconds % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // 1. Calculate Totals based on filtered list
   filteredCreators.forEach(c => {
@@ -103,6 +130,15 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
              totalLikes += u.likes;
              totalComments += u.comments;
              totalShares += (u.shares || 0);
+             totalItemsSold += (u.itemsSold || 0);
+
+             if (u.avgWatchTime) {
+                 const secs = parseWatchTime(u.avgWatchTime);
+                 if (secs > 0) {
+                     totalWatchSeconds += secs;
+                     videosWithWatchTimeCount++;
+                 }
+             }
          });
      } else {
          // Fallback if no uploads log but basic stats exist
@@ -111,9 +147,45 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
              totalLikes += c.avgLikes;
              totalComments += c.avgComments;
              totalShares += (c.avgShares || 0);
+             // Cannot deduce sold items or watch time from basic creator stats
          }
      }
   });
+
+  // Demographics Aggregation (From filtered creators)
+  let genderAgg: Record<string, number> = { Female: 0, Male: 0 };
+  let territoryAgg: Record<string, number> = {};
+  let demoCount = 0;
+
+  filteredCreators.forEach(c => {
+      if (c.demographics) {
+          demoCount++;
+          c.demographics.gender.forEach(g => {
+              const key = g.name === 'Female' || g.name === 'Male' ? g.name : 'Other';
+              genderAgg[key] = (genderAgg[key] || 0) + g.value;
+          });
+          c.demographics.territories.forEach(t => {
+              territoryAgg[t.country] = (territoryAgg[t.country] || 0) + t.value;
+          });
+      }
+  });
+
+  const genderData = demoCount > 0 
+      ? Object.entries(genderAgg).map(([name, val]) => ({ name, value: Math.round(val / demoCount) }))
+      : [];
+  
+  const territoryData = demoCount > 0
+      ? Object.entries(territoryAgg)
+          .map(([country, val]) => ({ country, value: Math.round(val / demoCount) }))
+          .sort((a,b) => b.value - a.value).slice(0, 5)
+      : [];
+
+
+  const totalEngagement = totalLikes + totalComments + totalShares;
+  const engagementRate = totalViews > 0 ? ((totalEngagement / totalViews) * 100).toFixed(2) : "0.00";
+  const averageWatchTimeDisplay = videosWithWatchTimeCount > 0 
+      ? formatSeconds(totalWatchSeconds / videosWithWatchTimeCount) 
+      : "0:00";
 
   // 2. Prepare Detailed Creator Data (For Global Charts)
   const globalCreatorData = filteredCreators.map(c => {
@@ -121,6 +193,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
     let likes = 0;
     let comments = 0;
     let shares = 0;
+    let itemsSold = 0;
     let count = 0;
 
     if (c.uploads && c.uploads.length > 0) {
@@ -133,6 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
             likes += u.likes;
             comments += u.comments;
             shares += (u.shares || 0);
+            itemsSold += (u.itemsSold || 0);
             count++;
         });
     } else if (selectedProduct === 'All Products' || c.productCategory === selectedProduct) {
@@ -151,6 +225,7 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
         views: views,
         likes: likes,
         shares: shares,
+        itemsSold: itemsSold,
         engagement: likes + comments + shares,
         engagementRate: views > 0 ? parseFloat(((likes + comments + shares) / views * 100).toFixed(2)) : 0
     };
@@ -169,13 +244,15 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
       product: v.product,
       views: v.views,
       likes: v.likes,
-      shares: v.shares || 0
+      shares: v.shares || 0,
+      sold: v.itemsSold || 0
   }));
 
   // 4. Category Comparison Data (Global Only)
   const categoryComparisonData = PRODUCT_CATEGORIES.filter(c => c !== 'All Products').map(cat => {
     let catTotalComments = 0;
     let catTotalLikes = 0;
+    let catTotalSold = 0;
     let videoCount = 0;
 
     creators.forEach(c => {
@@ -184,24 +261,21 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
             relevant.forEach(u => {
                 catTotalComments += u.comments;
                 catTotalLikes += u.likes;
+                catTotalSold += (u.itemsSold || 0);
                 videoCount++;
             });
-        } else if (c.productCategory === cat) {
-            catTotalComments += c.avgComments;
-            catTotalLikes += c.avgLikes;
-            videoCount++;
         }
     });
     
     return {
       name: cat,
       avgComments: videoCount > 0 ? Math.round(catTotalComments / videoCount) : 0,
-      avgLikes: videoCount > 0 ? Math.round(catTotalLikes / videoCount) : 0
+      avgLikes: videoCount > 0 ? Math.round(catTotalLikes / videoCount) : 0,
+      totalSold: catTotalSold
     };
   });
 
   // 5. REPORT / VIOLATION ANALYTICS
-  // Aggregating reports by type
   const violationTypeMap = new Map<string, number>();
   reports.forEach(r => {
     const current = violationTypeMap.get(r.violationType) || 0;
@@ -209,7 +283,6 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
   });
   const violationTypeData = Array.from(violationTypeMap.entries()).map(([name, value]) => ({ name, value }));
 
-  // Aggregating reports by Creator (Top Violators)
   const creatorViolationMap = new Map<string, number>();
   reports.forEach(r => {
     const current = creatorViolationMap.get(r.creatorName) || 0;
@@ -263,15 +336,13 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
 
       const updatedUploads = [...(creator.uploads || []), newVideo];
       
-      // Calc Stats
       const tViews = updatedUploads.reduce((sum, u) => sum + u.views, 0);
       const tLikes = updatedUploads.reduce((sum, u) => sum + u.likes, 0);
       const tComments = updatedUploads.reduce((sum, u) => sum + u.comments, 0);
       const tShares = updatedUploads.reduce((sum, u) => sum + (u.shares || 0), 0);
 
       const updatedCreator = {
-          ...creator, // spread existing properties to keep ID etc
-          // Overwrite updated fields for the save function
+          ...creator,
           videoLink: newVideo.url,
           uploads: updatedUploads,
           avgViews: tViews,
@@ -282,7 +353,6 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
           lastUpdated: new Date().toISOString()
       };
 
-      // We need to pass clean FormData to saveCreator
       const formData = {
         name: updatedCreator.name,
         username: updatedCreator.username,
@@ -301,7 +371,6 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
 
       await saveCreator(formData, creator.id);
       setIsLogModalOpen(false);
-      // Reset form (keep date and creator somewhat for ease?) No, full reset is safer.
       setLogForm({ 
         creatorId: '', title: '', url: '', product: 'Maikalian', productName: '',
         views: 0, likes: 0, comments: 0, shares: 0, newFollowers: 0, avgWatchTime: '', watchedFullVideo: 0, itemsSold: 0,
@@ -491,35 +560,121 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                 </div>
             </div>
 
-            {/* METRICS CARDS */}
+            {/* KEY METRICS GRID - UPDATED */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-gray-400 text-sm font-medium">Total Views</h3>
-                    <TrendingUp className="w-5 h-5 text-green-400" />
+                {/* 1. Total Views */}
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Eye className="w-16 h-16 text-blue-400" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wide">Total Views</h3>
+                        <div className="bg-blue-500/20 p-2 rounded-lg">
+                            <Eye className="w-5 h-5 text-blue-400" />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white relative z-10">{totalViews.toLocaleString()}</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{totalViews.toLocaleString()}</p>
+
+                {/* 2. Engagement Rate */}
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Activity className="w-16 h-16 text-purple-400" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wide">Engagement Rate</h3>
+                        <div className="bg-purple-500/20 p-2 rounded-lg">
+                            <Activity className="w-5 h-5 text-purple-400" />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white relative z-10">{engagementRate}%</p>
                 </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-gray-400 text-sm font-medium">Total Likes</h3>
-                    <TrendingUp className="w-5 h-5 text-pink-400" />
+
+                {/* 3. Items Sold */}
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <DollarSign className="w-16 h-16 text-green-400" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wide">Items Sold</h3>
+                         <div className="bg-green-500/20 p-2 rounded-lg">
+                            <DollarSign className="w-5 h-5 text-green-400" />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white relative z-10">{totalItemsSold.toLocaleString()}</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{totalLikes.toLocaleString()}</p>
+
+                {/* 4. Average Watch Time */}
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Clock className="w-16 h-16 text-orange-400" />
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wide">Avg. Watch Time</h3>
+                         <div className="bg-orange-500/20 p-2 rounded-lg">
+                            <Clock className="w-5 h-5 text-orange-400" />
+                        </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white relative z-10">{averageWatchTimeDisplay}</p>
                 </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-gray-400 text-sm font-medium">Total Comments</h3>
-                    <MessageCircle className="w-5 h-5 text-blue-400" />
+            </div>
+
+            {/* DEMOGRAPHICS CHARTS (Aggregated) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 mb-6">
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-pink-400" /> Audience Gender (Average)
+                    </h3>
+                    <div className="h-64">
+                        {genderData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={genderData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {genderData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                                No demographics data uploaded by creators.
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <p className="text-2xl font-bold text-white">{totalComments.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-gray-400 text-sm font-medium">Total Shares</h3>
-                    <Share2 className="w-5 h-5 text-purple-400" />
-                </div>
-                <p className="text-2xl font-bold text-white">{totalShares.toLocaleString()}</p>
+
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-blue-400" /> Top Territories (Avg %)
+                    </h3>
+                    <div className="h-64">
+                        {territoryData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={territoryData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
+                                    <XAxis type="number" stroke="#9ca3af" unit="%" />
+                                    <YAxis dataKey="country" type="category" stroke="#9ca3af" width={100} />
+                                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
+                                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                                No territory data uploaded.
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -553,19 +708,19 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                             <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
                                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                                 <ShoppingBag className="w-5 h-5 text-yellow-400" />
-                                Category Engagement Comparison
+                                Category Sales & Interactions
                                 </h3>
                                 <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <ComposedChart data={categoryComparisonData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                     <XAxis dataKey="name" stroke="#9ca3af" />
-                                    <YAxis yAxisId="left" stroke="#9ca3af" label={{ value: 'Likes', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#60a5fa" label={{ value: 'Comments', angle: 90, position: 'insideRight', fill: '#60a5fa' }} />
+                                    <YAxis yAxisId="left" stroke="#9ca3af" label={{ value: 'Interactions', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#22c55e" label={{ value: 'Sold', angle: 90, position: 'insideRight', fill: '#22c55e' }} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
                                     <Legend />
-                                    <Bar yAxisId="left" dataKey="avgLikes" fill="#ec4899" name="Avg Likes" radius={[4, 4, 0, 0]} barSize={40} />
-                                    <Line yAxisId="right" type="monotone" dataKey="avgComments" stroke="#60a5fa" strokeWidth={3} name="Avg Comments" dot={{r: 4}} />
+                                    <Bar yAxisId="left" dataKey="avgLikes" fill="#ec4899" name="Avg Likes" radius={[4, 4, 0, 0]} barSize={30} />
+                                    <Line yAxisId="right" type="monotone" dataKey="totalSold" stroke="#22c55e" strokeWidth={3} name="Total Sold" dot={{r: 4}} />
                                     </ComposedChart>
                                 </ResponsiveContainer>
                                 </div>
@@ -631,12 +786,11 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                                             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                             <XAxis dataKey="name" stroke="#9ca3af" interval={0} angle={-45} textAnchor="end" height={60} />
                                             <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" />
-                                            <YAxis yAxisId="right" orientation="right" stroke="#ec4899" />
+                                            <YAxis yAxisId="right" orientation="right" stroke="#22c55e" />
                                             <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
                                             <Legend />
                                             <Bar yAxisId="left" dataKey="views" name="Total Views" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                            <Bar yAxisId="right" dataKey="likes" name="Total Likes" fill="#ec4899" radius={[4, 4, 0, 0]} />
-                                            <Bar yAxisId="right" dataKey="shares" name="Total Shares" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                            <Bar yAxisId="right" dataKey="itemsSold" name="Items Sold" fill="#22c55e" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -658,12 +812,13 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                                     <BarChart data={videoChartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                         <XAxis dataKey="name" stroke="#9ca3af" angle={-45} textAnchor="end" interval={0} />
-                                        <YAxis stroke="#9ca3af" />
+                                        <YAxis yAxisId="left" stroke="#9ca3af" />
+                                        <YAxis yAxisId="right" orientation="right" stroke="#22c55e" />
                                         <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} />
                                         <Legend verticalAlign="top"/>
-                                        <Bar dataKey="views" name="Views" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="likes" name="Likes" fill="#ec4899" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="shares" name="Shares" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                        <Bar yAxisId="left" dataKey="views" name="Views" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                        <Bar yAxisId="left" dataKey="likes" name="Likes" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                                        <Bar yAxisId="right" dataKey="sold" name="Items Sold" fill="#22c55e" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -756,9 +911,14 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                     {selectedCreatorId !== 'all' ? `AI Insights: ${singleCreator?.name}` : 'Global AI Insights'}
                     </h2>
                 </div>
-                {!loading && error && (
-                    <button onClick={fetchAnalysis} className="text-sm text-purple-400 hover:text-white flex items-center gap-1">
-                    <RefreshCw className="w-4 h-4" /> Retry
+                
+                {/* Generation Control - Manual Button */}
+                {!loading && (
+                    <button 
+                        onClick={fetchAnalysis} 
+                        className="text-sm bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600 hover:text-white px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all"
+                    >
+                    <RefreshCw className="w-4 h-4" /> {analysis ? 'Regenerate Analysis' : 'Generate Analysis'}
                     </button>
                 )}
                 </div>
@@ -810,7 +970,9 @@ const Dashboard: React.FC<DashboardProps> = ({ creators, reports }) => {
                     </div>
                 </div>
                 ) : (
-                <p className="text-gray-400 py-4 text-center">Add creators to the database to generate AI insights.</p>
+                <div className="text-center py-8 text-gray-500 bg-gray-800/20 rounded-lg border border-gray-700/50 border-dashed">
+                    <p>Click "Generate Analysis" to get AI-powered insights for this view.</p>
+                </div>
                 )}
             </div>
         </>

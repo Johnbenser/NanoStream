@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from './firebase';
-import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo } from '../types';
+import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo, ContentPlan, FGSoraError } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
 const CLIENTS_COLLECTION = 'clients'; // New collection for Brand Clients
@@ -20,6 +20,8 @@ const LOGS_COLLECTION = 'logs';
 const RESOURCES_COLLECTION = 'resources';
 const BRANDS_COLLECTION = 'brand_products';
 const REPORTS_COLLECTION = 'reported_videos';
+const PLANS_COLLECTION = 'content_plans';
+const FGSORA_COLLECTION = 'fgsora_errors';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -128,6 +130,42 @@ export const subscribeToReports = (
     onData(reports);
   }, (error) => {
     console.error("Firebase Reports Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+export const subscribeToContentPlans = (
+  onData: (plans: ContentPlan[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, PLANS_COLLECTION), orderBy('date', 'asc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const plans = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ContentPlan[];
+    onData(plans);
+  }, (error) => {
+    console.error("Firebase Plans Sync Error:", error);
+    if (onError) onError(error);
+  });
+};
+
+export const subscribeToFGSoraErrors = (
+  onData: (errors: FGSoraError[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, FGSORA_COLLECTION), orderBy('timestamp', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const errors = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as FGSoraError[];
+    onData(errors);
+  }, (error) => {
+    console.error("Firebase FGSora Sync Error:", error);
     if (onError) onError(error);
   });
 };
@@ -310,6 +348,59 @@ export const deleteReport = async (id: string, title: string): Promise<void> => 
     addLog('DELETE', `Report Case: ${title}`);
   } catch (e) {
     console.error("Error deleting report:", e);
+    throw e;
+  }
+};
+
+export const saveContentPlan = async (data: Omit<ContentPlan, 'id' | 'createdAt'>, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      const docRef = doc(db, PLANS_COLLECTION, id);
+      await updateDoc(docRef, {
+        ...data
+      });
+      addLog('UPDATE', `Planned Content: ${data.title}`);
+    } else {
+      await addDoc(collection(db, PLANS_COLLECTION), {
+        ...data,
+        createdAt: new Date().toISOString()
+      });
+      addLog('CREATE', `Planned Content: ${data.title}`);
+    }
+  } catch (e) {
+    console.error("Error saving content plan:", e);
+    throw e;
+  }
+};
+
+export const deleteContentPlan = async (id: string, title: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, PLANS_COLLECTION, id));
+    addLog('DELETE', `Planned Content: ${title}`);
+  } catch (e) {
+    console.error("Error deleting content plan:", e);
+    throw e;
+  }
+};
+
+export const saveFGSoraError = async (data: Omit<FGSoraError, 'id' | 'timestamp'>): Promise<void> => {
+  try {
+    await addDoc(collection(db, FGSORA_COLLECTION), {
+      ...data,
+      timestamp: new Date().toISOString()
+    });
+    // Optional: addLog if needed, but this is a high-frequency action
+  } catch (e) {
+    console.error("Error saving FGSora error:", e);
+    throw e;
+  }
+};
+
+export const deleteFGSoraError = async (id: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, FGSORA_COLLECTION, id));
+  } catch (e) {
+    console.error("Error deleting FGSora error:", e);
     throw e;
   }
 };

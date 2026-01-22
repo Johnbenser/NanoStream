@@ -3,10 +3,11 @@ import {
   createUserWithEmailAndPassword,
   signOut, 
   onAuthStateChanged,
-  User as FirebaseUser
+  type User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, limit, query } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, limit, query, orderBy } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { User } from '../types';
 
 const USERS_COLLECTION = 'users';
 
@@ -31,6 +32,24 @@ export const subscribeToAuth = (
     } else {
       callback(null, '');
     }
+  });
+};
+
+export const subscribeToUsers = (
+  onData: (users: User[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, USERS_COLLECTION), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (snapshot) => {
+    const users = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as User[];
+    onData(users);
+  }, (error) => {
+    console.error("Firebase Users Sync Error:", error);
+    if (onError) onError(error);
   });
 };
 
@@ -67,9 +86,8 @@ export const getCurrentUserEmail = (): string | null => {
   return auth.currentUser?.email || null;
 };
 
-export const assignUserRole = async (uid: string, email: string, role: 'ADMIN' | 'EDITOR' | 'CSR') => {
+export const assignUserRole = async (uid: string, role: 'ADMIN' | 'EDITOR' | 'CSR') => {
   await setDoc(doc(db, USERS_COLLECTION, uid), {
-    email,
     role
   }, { merge: true });
 };

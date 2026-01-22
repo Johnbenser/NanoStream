@@ -1,5 +1,5 @@
 import React, { ReactNode, useState, useRef, useEffect } from 'react';
-import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock, Link, Globe, ShoppingBag, ShieldAlert, Briefcase, ChevronDown, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Sparkles, Menu, X, Shield, LogOut, Lock, Link, Globe, ShoppingBag, ShieldAlert, Briefcase, ChevronDown, Bell, CalendarDays, Flame } from 'lucide-react';
 import { ViewState } from '../types';
 import { logout } from '../services/authService';
 import { addLog } from '../services/storageService';
@@ -40,10 +40,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
 
   const navItems = [
     { id: ViewState.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+    { id: ViewState.VIRAL_REPORT, label: 'Viral Video Report', icon: Flame }, // NEW
     { id: ViewState.CLIENTS, label: 'Client Workspaces', icon: Briefcase }, // New Client Section
     { id: ViewState.BRANDS, label: 'Product Inventory', icon: ShoppingBag }, 
     { id: ViewState.REPORTS, label: 'Violations & Reports', icon: ShieldAlert },
     { id: ViewState.TOOLS, label: 'AI Tools', icon: Sparkles },
+    { id: ViewState.PLANNER, label: 'Content Planner', icon: CalendarDays },
     { id: ViewState.LINKS, label: 'Internal Links', icon: Link },
     // Only Admin can see logs and user management
     ...(userRole === 'ADMIN' ? [
@@ -101,7 +103,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, onLog
                     : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
                 }`}
               >
-                <item.icon className="w-5 h-5" />
+                <item.icon className={`w-5 h-5 ${item.id === ViewState.VIRAL_REPORT ? 'text-red-500' : ''}`} />
                 <span className="font-medium">{item.label}</span>
               </button>
             ))}

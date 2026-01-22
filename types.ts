@@ -1,4 +1,5 @@
 
+
 export interface VideoUpload {
   id: string;
   title: string; 
@@ -18,6 +19,12 @@ export interface VideoUpload {
   itemsSold?: number;
 }
 
+export interface DemographicData {
+  gender: { name: string; value: number }[];
+  territories: { country: string; value: number }[];
+  history: { date: string; followers: number }[];
+}
+
 export interface Creator {
   id: string;
   name: string;
@@ -29,6 +36,7 @@ export interface Creator {
   videoLink?: string; // Legacy field, kept for backward compat
   tiktokLink?: string; // New field for Client Brand Profile
   uploads?: VideoUpload[]; // New field for detailed tracking
+  demographics?: DemographicData;
   avgViews: number;
   avgLikes: number;
   avgComments: number;
@@ -47,6 +55,7 @@ export interface CreatorFormData {
   videoLink?: string;
   tiktokLink?: string;
   uploads?: VideoUpload[];
+  demographics?: DemographicData;
   avgViews: number;
   avgLikes: number;
   avgComments: number;
@@ -89,6 +98,32 @@ export interface ReportedVideo {
   dateReported: string;
 }
 
+export interface FGSoraError {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  category: string;
+  description: string;
+  steps: string;
+  imageUrl?: string;
+  timestamp: string; // Full ISO for sorting
+}
+
+export interface ContentPlan {
+  id: string;
+  title: string;
+  date: string; // ISO Date YYYY-MM-DD
+  time?: string; // HH:mm
+  productName?: string;
+  promptDetails?: string;
+  clientId?: string; // Link to Client Workspace
+  clientName?: string;
+  status: 'IDEA' | 'SCRIPTING' | 'FILMING' | 'EDITING' | 'READY' | 'POSTED';
+  notes: string;
+  platform: 'TikTok' | 'Instagram' | 'YouTube';
+  createdAt: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   assumptions: string[];
@@ -109,6 +144,14 @@ export interface CaptionResult {
   strategy: string;
 }
 
+export interface ViralReportResult {
+  viralityScore: number; // 0-100
+  hookAnalysis: string;
+  engagementQuality: string;
+  whyItWorked: string[];
+  nextSteps: string[];
+}
+
 export interface LogEntry {
   id: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'IMPORT';
@@ -123,6 +166,8 @@ export interface User {
   password: string; // stored plainly for this demo
   role: 'ADMIN' | 'EDITOR' | 'CSR';
   lastLogin?: string;
+  email?: string;
+  createdAt?: string;
 }
 
 export enum ViewState {
@@ -131,6 +176,8 @@ export enum ViewState {
   CREATORS = 'CREATORS',
   BRANDS = 'BRANDS',
   TOOLS = 'TOOLS',
+  PLANNER = 'PLANNER', // Renamed from CHATGPT
+  VIRAL_REPORT = 'VIRAL_REPORT', // NEW: Exclusive Single Video Report
   REPORTS = 'REPORTS',
   LINKS = 'LINKS',
   LOGS = 'LOGS',

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Creator, AnalysisResult, CaptionResult, ReportedVideo, ReportAnalysisResult } from '../types';
+import { Creator, AnalysisResult, CaptionResult, ReportedVideo, ReportAnalysisResult, ViralReportResult } from '../types';
 
 const getClient = () => {
   // Check Environment Variables (Standard Vercel/Vite Config)
@@ -81,6 +81,130 @@ export const analyzeCreatorData = async (creators: Creator[]): Promise<AnalysisR
     console.error("Analysis Error:", error);
     // Re-throw so the UI knows it failed, rather than showing empty data
     throw new Error(error.message || "Failed to generate analysis");
+  }
+};
+
+export const analyzeClientData = async (clients: Creator[]): Promise<AnalysisResult> => {
+  const dataset = JSON.stringify(clients.map(c => ({
+    brand: c.name,
+    industry: c.niche,
+    totalVideos: c.videosCount,
+    avgViews: c.avgViews,
+    engagement: c.avgViews > 0 ? ((c.avgLikes + c.avgComments + (c.avgShares || 0)) / c.avgViews).toFixed(3) : 0,
+    products: c.uploads?.map(u => u.product).slice(0, 3) || []
+  })));
+
+  const prompt = `
+    Analyze the following dataset of Client Brands utilizing AI-generated video content.
+    
+    1. **Summary**: High-level overview of performance.
+    2. **Good Things (Top Performers)**: Identify the best performing brands/industries and positive trends.
+    3. **Key Assumptions for AI Videos**: What patterns explain the success? (e.g. Does the 'Tech' niche perform better with AI avatars? Do high engagement rates correlate with specific products?).
+    4. **Growth Opportunities**: Strategic advice for scaling.
+    5. **Audience Demographics**: Inferred target audience based on the industries.
+
+    Dataset: ${dataset}
+  `;
+
+  try {
+    const ai = getClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING },
+            topPerformers: { type: Type.ARRAY, items: { type: Type.STRING } }, // Mapped to "Good Things"
+            assumptions: { type: Type.ARRAY, items: { type: Type.STRING } }, // Mapped to "Key Assumptions"
+            growthOpportunities: { type: Type.ARRAY, items: { type: Type.STRING } },
+            audienceDemographics: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No analysis generated");
+    
+    const parsed = JSON.parse(text);
+
+    return {
+      summary: parsed.summary || "Analysis completed.",
+      assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [],
+      topPerformers: Array.isArray(parsed.topPerformers) ? parsed.topPerformers : [],
+      growthOpportunities: Array.isArray(parsed.growthOpportunities) ? parsed.growthOpportunities : [],
+      audienceDemographics: Array.isArray(parsed.audienceDemographics) ? parsed.audienceDemographics : []
+    };
+    
+  } catch (error: any) {
+    console.error("Client Analysis Error:", error);
+    throw new Error(error.message || "Failed to generate client analysis");
+  }
+};
+
+export const analyzeViralVideo = async (videoData: any): Promise<ViralReportResult> => {
+  const prompt = `
+    Analyze this single viral video performance to create an exclusive report.
+    
+    Video Details:
+    Title: "${videoData.title}"
+    Niche: "${videoData.niche}"
+    Product: "${videoData.product}"
+    Platform: "${videoData.platform}"
+    
+    Metrics:
+    Views: ${videoData.views}
+    Likes: ${videoData.likes}
+    Comments: ${videoData.comments}
+    Shares: ${videoData.shares}
+    Saves: ${videoData.saves}
+    
+    Task:
+    1. Calculate a "Virality Score" (0-100) based on the engagement ratio relative to views.
+    2. Analyze the "Hook" effectiveness (theoretical, based on the high metrics).
+    3. Determine the "Engagement Quality" (e.g., are people sharing? saving?).
+    4. Provide 3 specific reasons "Why It Worked".
+    5. Suggest 3 specific "Next Steps" to replicate this success.
+  `;
+
+  try {
+    const ai = getClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            viralityScore: { type: Type.INTEGER },
+            hookAnalysis: { type: Type.STRING },
+            engagementQuality: { type: Type.STRING },
+            whyItWorked: { type: Type.ARRAY, items: { type: Type.STRING } },
+            nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No analysis generated");
+    const parsed = JSON.parse(text);
+
+    return {
+      viralityScore: parsed.viralityScore || 0,
+      hookAnalysis: parsed.hookAnalysis || "Analysis pending.",
+      engagementQuality: parsed.engagementQuality || "Analysis pending.",
+      whyItWorked: Array.isArray(parsed.whyItWorked) ? parsed.whyItWorked : [],
+      nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : []
+    };
+
+  } catch (error: any) {
+    console.error("Viral Analysis Error:", error);
+    throw new Error(error.message || "Failed to analyze viral video");
   }
 };
 
