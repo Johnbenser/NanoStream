@@ -1,9 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Upload, FileSpreadsheet, Loader2, Image as ImageIcon, X, CheckCircle, Bug, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Upload, FileSpreadsheet, Loader2, Image as ImageIcon, X, CheckCircle, Bug, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, ExternalLink, Copy, FileText, Cloud, Settings, RefreshCcw, Link as LinkIcon } from 'lucide-react';
 import { uploadFile, saveFGSoraError, subscribeToFGSoraErrors, deleteFGSoraError } from '../services/storageService';
 import { FGSoraError } from '../types';
 import { auth } from '../services/firebase';
+
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
 const FGSoraReporter: React.FC = () => {
   // Form State
@@ -19,6 +25,7 @@ const FGSoraReporter: React.FC = () => {
 
   // Data State
   const [errors, setErrors] = useState<FGSoraError[]>([]);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   
   // View/Export State
   const [viewPeriod, setViewPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
@@ -26,7 +33,20 @@ const FGSoraReporter: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
+  // Google Integration State
+  const [gDriveToken, setGDriveToken] = useState<string | null>(null);
+  const [gClientId, setGClientId] = useState<string>('');
+  const [isPushingToDrive, setIsPushingToDrive] = useState(false);
+  const [showClientInput, setShowClientInput] = useState(false);
+  const [linkedSheetId, setLinkedSheetId] = useState<string | null>(null);
+
   useEffect(() => {
+    const savedClientId = localStorage.getItem('gml_google_client_id');
+    const savedSheetId = localStorage.getItem('gml_target_sheet_id');
+    
+    if (savedClientId) setGClientId(savedClientId);
+    if (savedSheetId) setLinkedSheetId(savedSheetId);
+
     const unsubscribe = subscribeToFGSoraErrors(
       (data) => setErrors(data),
       (error) => console.error("Error syncing logs", error)
@@ -92,29 +112,17 @@ const FGSoraReporter: React.FC = () => {
   };
 
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
-      // 1. Event Safety
-      if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-      }
-
-      if (!id) {
-          console.error("Attempted to delete with missing ID");
-          return;
-      }
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      if (!id) return;
 
       if(window.confirm("Are you sure you want to delete this error log?")) {
-          // 2. Optimistic Update: Remove from UI immediately
           const previousErrors = [...errors];
           setErrors(prev => prev.filter(item => item.id !== id));
-          
           try {
-            // 3. Perform Server Delete
             await deleteFGSoraError(id);
           } catch (err) {
             console.error("Delete operation failed:", err);
             alert("Failed to delete item. It will reappear.");
-            // 4. Rollback UI if failed
             setErrors(previousErrors);
           }
       }
@@ -128,7 +136,6 @@ const FGSoraReporter: React.FC = () => {
           if (viewPeriod === 'yearly') return e.date.startsWith(selectedYear);
           return false;
       }).sort((a,b) => {
-          // Sort by Date desc, then Time desc
           const dateComp = b.date.localeCompare(a.date);
           if (dateComp !== 0) return dateComp;
           return b.time.localeCompare(a.time);
@@ -137,36 +144,17 @@ const FGSoraReporter: React.FC = () => {
 
   const filteredErrors = getFilteredErrors();
 
-  // --- EXPORT LOGIC ---
-  const handleExport = () => {
-      if (filteredErrors.length === 0) {
-          alert("No logs to export for this period.");
-          return;
-      }
-
+  // --- REPORT GENERATION (HTML for Excel) ---
+  const generateReportHtml = () => {
       const currentUser = auth.currentUser?.email || "Unknown User";
       const generateDate = new Date().toLocaleString();
-      
       let periodLabel = '';
-      let filename = '';
-
-      if (viewPeriod === 'daily') {
-          periodLabel = `Daily Report: ${selectedDate}`;
-          filename = `FGSORA_Daily_Report_${selectedDate}`;
-      } else if (viewPeriod === 'monthly') {
-          periodLabel = `Monthly Report: ${selectedMonth}`;
-          filename = `FGSORA_Monthly_Report_${selectedMonth}`;
-      } else {
-          periodLabel = `Yearly Report: ${selectedYear}`;
-          filename = `FGSORA_Yearly_Report_${selectedYear}`;
-      }
+      if (viewPeriod === 'daily') periodLabel = `Daily Report: ${selectedDate}`;
+      else if (viewPeriod === 'monthly') periodLabel = `Monthly Report: ${selectedMonth}`;
+      else periodLabel = `Yearly Report: ${selectedYear}`;
 
       const tableRows = filteredErrors.map(log => {
-        // Fix for Excel Link Handling
-        const safeUrl = log.imageUrl 
-            ? log.imageUrl.replace(/&/g, '&amp;').replace(/%2F/g, '%252F') 
-            : '';
-        
+        const safeUrl = log.imageUrl ? log.imageUrl.replace(/&/g, '&amp;').replace(/%2F/g, '%252F') : '';
         return `
         <tr>
             <td style="text-align:center;">${log.date}</td>
@@ -180,7 +168,7 @@ const FGSoraReporter: React.FC = () => {
         </tr>
       `}).join('');
 
-      const htmlContent = `
+      return `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
         <head>
             <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
@@ -192,68 +180,178 @@ const FGSoraReporter: React.FC = () => {
                 .meta-table { width: 100%; margin: 20px 0; border: 1px solid #e5e7eb; }
                 .meta-label { font-weight: bold; background-color: #f3f4f6; padding: 8px; width: 200px; color: #374151; }
                 .meta-value { padding: 8px; color: #1f2937; }
-                
                 table.data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                 table.data-table th { background-color: #7f1d1d; color: white; padding: 12px; text-align: left; border: 1px solid #991b1b; font-size: 12px; text-transform: uppercase; }
                 table.data-table td { padding: 10px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #1f2937; }
                 table.data-table tr:nth-child(even) { background-color: #fef2f2; }
-                
-                .footer { margin-top: 30px; font-size: 10px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
             </style>
         </head>
         <body>
-            <div class="header-container">
-                <div class="report-title">System Error Report</div>
-                <div class="site-name">FGSORA.COM Monitoring Log</div>
-            </div>
-            
+            <div class="header-container"><div class="report-title">System Error Report</div><div class="site-name">FGSORA.COM Monitoring Log</div></div>
             <table class="meta-table">
-                <tr>
-                    <td class="meta-label">Report Period</td>
-                    <td class="meta-value">${periodLabel}</td>
-                </tr>
-                <tr>
-                    <td class="meta-label">Generated By</td>
-                    <td class="meta-value">${currentUser}</td>
-                </tr>
-                <tr>
-                    <td class="meta-label">Generated On</td>
-                    <td class="meta-value">${generateDate}</td>
-                </tr>
-                <tr>
-                    <td class="meta-label">Source System</td>
-                    <td class="meta-value">Global Media Live Dashboard</td>
-                </tr>
+                <tr><td class="meta-label">Report Period</td><td class="meta-value">${periodLabel}</td></tr>
+                <tr><td class="meta-label">Generated By</td><td class="meta-value">${currentUser}</td></tr>
+                <tr><td class="meta-label">Generated On</td><td class="meta-value">${generateDate}</td></tr>
             </table>
-            
             <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="text-align:center;">Date</th>
-                        <th style="text-align:center;">Time</th>
-                        <th>Error Category</th>
-                        <th>Description</th>
-                        <th>Steps to Reproduce</th>
-                        <th style="text-align:center;">Screenshot</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
+                <thead><tr><th style="text-align:center;">Date</th><th style="text-align:center;">Time</th><th>Error Category</th><th>Description</th><th>Steps to Reproduce</th><th style="text-align:center;">Screenshot</th></tr></thead>
+                <tbody>${tableRows}</tbody>
             </table>
-
-            <div class="footer">
-                Confidential Report • Generated via Global Media Live • FGSORA.COM Analysis
-            </div>
         </body>
         </html>
       `;
+  };
 
+  const handleExport = () => {
+      if (filteredErrors.length === 0) {
+          alert("No logs to export for this period.");
+          return;
+      }
+      const htmlContent = generateReportHtml();
+      let filename = viewPeriod === 'daily' ? `FGSORA_Daily_${selectedDate}` : `FGSORA_Report`;
       const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `${filename}.xls`;
       link.click();
+  };
+
+  const handleCopyForDocs = async () => {
+      if (filteredErrors.length === 0) {
+          alert("No logs to copy.");
+          return;
+      }
+      const htmlContent = generateReportHtml();
+      try {
+          const type = "text/html";
+          const blob = new Blob([htmlContent], { type });
+          const data = [new ClipboardItem({ [type]: blob })];
+          await navigator.clipboard.write(data);
+          if(window.confirm("Report copied! Open docs.new?")) window.open("https://docs.new", "_blank");
+      } catch (err) {
+          alert("Clipboard copy failed.");
+      }
+  };
+
+  // --- GOOGLE SHEETS API LOGIC ---
+  const saveSettings = () => {
+      localStorage.setItem('gml_google_client_id', gClientId);
+      setShowClientInput(false);
+  };
+
+  const resetSpreadsheetLink = () => {
+      if(window.confirm("Unlink current spreadsheet? The next push will create a new file.")) {
+          localStorage.removeItem('gml_target_sheet_id');
+          setLinkedSheetId(null);
+      }
+  };
+
+  const pushToGoogleSheets = async (accessToken: string) => {
+      setIsPushingToDrive(true);
+      try {
+          let spreadsheetId = localStorage.getItem('gml_target_sheet_id');
+          // Format unique tab name: "Daily YYYY-MM-DD (HH:MM)" or similar to prevent duplicates
+          const timestamp = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'});
+          const sheetTitle = viewPeriod === 'daily' 
+            ? `${selectedDate} (${timestamp})`
+            : `${selectedMonth} Report (${timestamp})`;
+
+          // 1. Create Spreadsheet if not linked
+          if (!spreadsheetId) {
+              const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ properties: { title: 'Global Media Live - Master Reports' } })
+              });
+              const createData = await createRes.json();
+              if (createData.error) throw new Error(createData.error.message);
+              
+              spreadsheetId = createData.spreadsheetId;
+              localStorage.setItem('gml_target_sheet_id', spreadsheetId!);
+              setLinkedSheetId(spreadsheetId!);
+          }
+
+          // 2. Add New Sheet (Tab)
+          const addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
+          });
+          
+          const addSheetData = await addSheetRes.json();
+          if (addSheetData.error) {
+              if (addSheetData.error.message.includes('Requested entity was not found')) {
+                  // Sheet was deleted externally
+                  localStorage.removeItem('gml_target_sheet_id');
+                  setLinkedSheetId(null);
+                  throw new Error("Linked Spreadsheet not found. It may have been deleted. Please try again to create a new one.");
+              }
+              throw new Error(`Failed to create tab: ${addSheetData.error.message}`);
+          }
+
+          // 3. Prepare Data
+          const headers = ['Date', 'Time', 'Category', 'Description', 'Steps', 'Image Evidence'];
+          const rows = filteredErrors.map(e => [
+              e.date, 
+              e.time, 
+              e.category, 
+              e.description, 
+              e.steps || '', 
+              e.imageUrl || ''
+          ]);
+          const values = [headers, ...rows];
+
+          // 4. Write Data to New Tab
+          const writeRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetTitle}!A1?valueInputOption=USER_ENTERED`, {
+              method: 'PUT',
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ values })
+          });
+
+          if (!writeRes.ok) {
+              const err = await writeRes.json();
+              throw new Error(err.error?.message || "Write failed");
+          }
+
+          if (window.confirm(`Success! Added new tab "${sheetTitle}" to your master spreadsheet.\n\nOpen Spreadsheet now?`)) {
+              window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}`, '_blank');
+          }
+
+      } catch (e: any) {
+          console.error(e);
+          alert(`Google Sheets Error: ${e.message}`);
+      } finally {
+          setIsPushingToDrive(false);
+      }
+  };
+
+  const handlePushToSheets = () => {
+      if (filteredErrors.length === 0) {
+          alert("No logs to push.");
+          return;
+      }
+      if (!gClientId) {
+          setShowClientInput(true);
+          return;
+      }
+      if (!window.google) {
+          alert("Google API not loaded. Refresh page.");
+          return;
+      }
+
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: gClientId,
+          scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
+          callback: (tokenResponse: any) => {
+              if (tokenResponse && tokenResponse.access_token) {
+                  setGDriveToken(tokenResponse.access_token);
+                  pushToGoogleSheets(tokenResponse.access_token);
+              }
+          },
+      });
+
+      // Attempt to reuse token if valid, else request new
+      tokenClient.requestAccessToken();
   };
 
   return (
@@ -366,7 +464,7 @@ const FGSoraReporter: React.FC = () => {
         </div>
 
         {/* RIGHT: LIST / CALENDAR VIEW */}
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
+        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col relative">
             {/* Header / Filter */}
             <div className="p-4 border-b border-gray-800 bg-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-4 flex-1">
@@ -374,72 +472,37 @@ const FGSoraReporter: React.FC = () => {
                         <Calendar className="w-5 h-5 text-gray-300" />
                     </div>
                     
-                    {/* View Period Selector */}
                     <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
-                        <button 
-                            onClick={() => setViewPeriod('daily')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'daily' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            Daily
-                        </button>
-                        <button 
-                            onClick={() => setViewPeriod('monthly')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'monthly' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            Monthly
-                        </button>
-                        <button 
-                            onClick={() => setViewPeriod('yearly')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'yearly' ? 'bg-gray-700 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                        >
-                            Yearly
-                        </button>
+                        <button onClick={() => setViewPeriod('daily')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'daily' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Daily</button>
+                        <button onClick={() => setViewPeriod('monthly')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'monthly' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Monthly</button>
+                        <button onClick={() => setViewPeriod('yearly')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'yearly' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Yearly</button>
                     </div>
 
                     <div className="h-8 w-px bg-gray-700 hidden sm:block"></div>
 
-                    {/* Date Inputs based on Period */}
                     <div>
                         <label className="text-[10px] uppercase text-gray-500 font-bold block mb-1">
                             {viewPeriod === 'daily' ? 'Select Date' : viewPeriod === 'monthly' ? 'Select Month' : 'Select Year'}
                         </label>
-                        {viewPeriod === 'daily' && (
-                            <input 
-                                type="date" 
-                                className="bg-transparent text-white font-bold text-sm outline-none focus:text-red-400 transition-colors [color-scheme:dark]"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                            />
-                        )}
-                        {viewPeriod === 'monthly' && (
-                            <input 
-                                type="month" 
-                                className="bg-transparent text-white font-bold text-sm outline-none focus:text-red-400 transition-colors [color-scheme:dark]"
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                            />
-                        )}
+                        {viewPeriod === 'daily' && <input type="date" className="bg-transparent text-white font-bold text-sm outline-none [color-scheme:dark]" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />}
+                        {viewPeriod === 'monthly' && <input type="month" className="bg-transparent text-white font-bold text-sm outline-none [color-scheme:dark]" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />}
                         {viewPeriod === 'yearly' && (
-                            <select 
-                                className="bg-transparent text-white font-bold text-sm outline-none focus:text-red-400 transition-colors bg-gray-800"
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(e.target.value)}
-                            >
-                                {Array.from({length: 5}, (_, i) => new Date().getFullYear() - i).map(year => (
-                                    <option key={year} value={year}>{year}</option>
-                                ))}
+                            <select className="bg-transparent text-white font-bold text-sm outline-none bg-gray-800" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
+                                {Array.from({length: 5}, (_, i) => new Date().getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                         )}
                     </div>
                 </div>
 
-                <button 
-                    onClick={handleExport}
-                    disabled={filteredErrors.length === 0}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                    <FileSpreadsheet className="w-4 h-4" /> Export {viewPeriod.charAt(0).toUpperCase() + viewPeriod.slice(1)} Report
-                </button>
+                <div className="flex gap-2 items-center">
+                    <button onClick={() => setShowClientInput(true)} className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-500" title="API & Sheet Settings"><Settings className="w-4 h-4" /></button>
+                    <button onClick={handlePushToSheets} disabled={filteredErrors.length === 0 || isPushingToDrive} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg disabled:opacity-50 whitespace-nowrap">
+                        {isPushingToDrive ? <Loader2 className="w-4 h-4 animate-spin"/> : <Cloud className="w-4 h-4" />} <span className="hidden sm:inline">Push to Sheets</span>
+                    </button>
+                    <button onClick={handleExport} disabled={filteredErrors.length === 0} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg disabled:opacity-50 whitespace-nowrap">
+                        <FileSpreadsheet className="w-4 h-4" /> Excel
+                    </button>
+                </div>
             </div>
 
             {/* Scrollable List */}
@@ -447,64 +510,88 @@ const FGSoraReporter: React.FC = () => {
                 {filteredErrors.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-600">
                         <CheckCircle className="w-16 h-16 mb-4 opacity-20" />
-                        <p>No errors logged for this {viewPeriod.slice(0, -2)}.</p>
+                        <p>No errors logged for this period.</p>
                         <p className="text-sm mt-1">FGSORA systems running smoothly.</p>
                     </div>
                 ) : (
                     filteredErrors.map((error) => (
                         <div key={error.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex gap-4 hover:border-red-500/30 transition-all group">
-                            {/* Time/Date Column */}
                             <div className="flex flex-col items-center justify-start pt-1 min-w-[80px] border-r border-gray-700 pr-4">
                                 <Clock className="w-4 h-4 text-gray-500 mb-1" />
                                 <span className="text-lg font-bold text-white">{error.time}</span>
-                                {viewPeriod !== 'daily' && (
-                                    <span className="text-[10px] text-gray-500">{new Date(error.date).toLocaleDateString()}</span>
-                                )}
+                                {viewPeriod !== 'daily' && <span className="text-[10px] text-gray-500">{new Date(error.date).toLocaleDateString()}</span>}
                             </div>
-
-                            {/* Content */}
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
-                                    <h4 className={`font-medium truncate ${
-                                        error.category === 'API FAILURE' || error.category === 'CONGESTED IN WEBAPI' ? 'text-red-400 font-bold' : 'text-white'
-                                    }`}>
-                                        {error.category}
-                                    </h4>
-                                    <button 
-                                        type="button"
-                                        onClick={(e) => handleDelete(error.id, e)}
-                                        className="p-2 bg-gray-900/80 hover:bg-red-900/30 border border-gray-700 hover:border-red-500/50 text-gray-400 hover:text-red-400 rounded-lg transition-all z-10 shrink-0 cursor-pointer relative"
-                                        title="Delete Entry"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <h4 className={`font-medium truncate ${error.category.includes('FAILURE') ? 'text-red-400 font-bold' : 'text-white'}`}>{error.category}</h4>
+                                    <button onClick={(e) => handleDelete(error.id, e)} className="p-2 hover:bg-red-900/30 text-gray-400 hover:text-red-400 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                                 <p className="text-gray-400 text-sm mt-1">{error.description}</p>
-                                {error.steps && (
-                                    <div className="mt-2 text-xs text-gray-500 bg-gray-900/50 p-2 rounded">
-                                        <span className="font-bold text-gray-400">Steps:</span> {error.steps}
-                                    </div>
-                                )}
+                                {error.steps && <div className="mt-2 text-xs text-gray-500 bg-gray-900/50 p-2 rounded"><span className="font-bold text-gray-400">Steps:</span> {error.steps}</div>}
                             </div>
-
-                            {/* Image Thumbnail */}
                             {error.imageUrl && (
                                 <div className="w-24 h-24 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden shrink-0 relative group/img">
                                     <img src={error.imageUrl} alt="Error" className="w-full h-full object-cover opacity-80 group-hover/img:opacity-100 transition-opacity" />
-                                    <a 
-                                        href={error.imageUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity"
-                                    >
-                                        <ExternalLink className="w-6 h-6 text-white" />
-                                    </a>
+                                    <a href={error.imageUrl} target="_blank" rel="noopener noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity"><ExternalLink className="w-6 h-6 text-white" /></a>
                                 </div>
                             )}
                         </div>
                     ))
                 )}
             </div>
+
+            {/* Google Client ID Modal */}
+            {showClientInput && (
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-md w-full shadow-2xl space-y-6">
+                        <div className="flex items-center gap-2 border-b border-gray-700 pb-4">
+                            <div className="bg-blue-500/20 p-2 rounded-lg"><Settings className="w-5 h-5 text-blue-400" /></div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Integration Settings</h3>
+                                <p className="text-xs text-gray-400">Manage Google Sheets & Drive connection</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="text-xs font-bold text-gray-400 uppercase">Google Client ID</label>
+                            <input 
+                                type="text" 
+                                placeholder="7177...apps.googleusercontent.com"
+                                className="w-full bg-gray-900 border border-gray-600 text-white p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={gClientId}
+                                onChange={(e) => setGClientId(e.target.value)}
+                            />
+                            <p className="text-xs text-gray-500">Required for authentication.</p>
+                        </div>
+
+                        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 space-y-2">
+                            <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                                <LinkIcon className="w-3 h-3"/> Connected Spreadsheet
+                            </label>
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-gray-300 font-mono truncate max-w-[200px]">
+                                    {linkedSheetId ? linkedSheetId : 'Not connected'}
+                                </div>
+                                {linkedSheetId && (
+                                    <button onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${linkedSheetId}`, '_blank')} className="text-blue-400 hover:underline text-xs">
+                                        Open
+                                    </button>
+                                )}
+                            </div>
+                            {linkedSheetId && (
+                                <button onClick={resetSpreadsheetLink} className="w-full mt-2 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded-lg text-xs transition-colors border border-red-500/20">
+                                    <RefreshCcw className="w-3 h-3" /> Unlink / Reset Sheet
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => setShowClientInput(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium">Close</button>
+                            <button onClick={saveSettings} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-sm font-bold shadow-lg">Save Settings</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     </div>
   );
