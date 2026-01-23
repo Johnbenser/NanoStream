@@ -8,7 +8,8 @@ import {
   onSnapshot, 
   query, 
   orderBy,
-  serverTimestamp 
+  serverTimestamp,
+  setDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from './firebase';
@@ -22,6 +23,7 @@ const BRANDS_COLLECTION = 'brand_products';
 const REPORTS_COLLECTION = 'reported_videos';
 const PLANS_COLLECTION = 'content_plans';
 const FGSORA_COLLECTION = 'fgsora_errors';
+const SETTINGS_COLLECTION = 'settings';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -170,6 +172,22 @@ export const subscribeToFGSoraErrors = (
   });
 };
 
+export const subscribeToGlobalSheetId = (
+  onData: (id: string | null) => void
+) => {
+  const docRef = doc(db, SETTINGS_COLLECTION, 'fgsora_config');
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      onData(docSnap.data().sheetId || null);
+    } else {
+      onData(null);
+    }
+  }, (error) => {
+    console.warn("Settings sync warning:", error.code);
+    onData(null);
+  });
+};
+
 // --- ACTIONS ---
 
 export const addLog = async (action: LogEntry['action'], target: string): Promise<void> => {
@@ -184,6 +202,18 @@ export const addLog = async (action: LogEntry['action'], target: string): Promis
   } catch (e) {
     // Silently fail for logs if permissions are strict
     console.warn("Failed to add log (likely permission issue):", e);
+  }
+};
+
+export const saveGlobalSheetId = async (id: string | null): Promise<void> => {
+  try {
+    await setDoc(doc(db, SETTINGS_COLLECTION, 'fgsora_config'), {
+      sheetId: id,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Error saving global sheet ID:", e);
+    throw e;
   }
 };
 

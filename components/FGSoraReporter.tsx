@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Upload, FileSpreadsheet, Loader2, Image as ImageIcon, X, CheckCircle, Bug, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, ExternalLink, Copy, FileText, Cloud, Settings, RefreshCcw, Link as LinkIcon } from 'lucide-react';
-import { uploadFile, saveFGSoraError, subscribeToFGSoraErrors, deleteFGSoraError } from '../services/storageService';
+import { uploadFile, saveFGSoraError, subscribeToFGSoraErrors, deleteFGSoraError, saveGlobalSheetId, subscribeToGlobalSheetId } from '../services/storageService';
 import { FGSoraError } from '../types';
 import { auth } from '../services/firebase';
 
@@ -10,6 +10,8 @@ declare global {
     google: any;
   }
 }
+
+const DEFAULT_CLIENT_ID = "959817507774-rris7kg0sh6vh9dv304u4evmcjv0m62j.apps.googleusercontent.com";
 
 const FGSoraReporter: React.FC = () => {
   // Form State
@@ -35,23 +37,35 @@ const FGSoraReporter: React.FC = () => {
 
   // Google Integration State
   const [gDriveToken, setGDriveToken] = useState<string | null>(null);
-  const [gClientId, setGClientId] = useState<string>('');
+  const [gClientId, setGClientId] = useState<string>(DEFAULT_CLIENT_ID);
   const [isPushingToDrive, setIsPushingToDrive] = useState(false);
   const [showClientInput, setShowClientInput] = useState(false);
   const [linkedSheetId, setLinkedSheetId] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Load Local Client ID Override or Default
     const savedClientId = localStorage.getItem('gml_google_client_id');
-    const savedSheetId = localStorage.getItem('gml_target_sheet_id');
-    
-    if (savedClientId) setGClientId(savedClientId);
-    if (savedSheetId) setLinkedSheetId(savedSheetId);
+    if (savedClientId) {
+        setGClientId(savedClientId);
+    } else {
+        setGClientId(DEFAULT_CLIENT_ID);
+    }
 
-    const unsubscribe = subscribeToFGSoraErrors(
+    // 2. Subscribe to GLOBAL Sheet ID (Unified Report)
+    const unsubscribeSheet = subscribeToGlobalSheetId((id) => {
+        setLinkedSheetId(id);
+    });
+
+    // 3. Subscribe to Errors
+    const unsubscribeErrors = subscribeToFGSoraErrors(
       (data) => setErrors(data),
       (error) => console.error("Error syncing logs", error)
     );
-    return () => unsubscribe();
+
+    return () => {
+        unsubscribeSheet();
+        unsubscribeErrors();
+    };
   }, []);
   
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,10 +236,14 @@ const FGSoraReporter: React.FC = () => {
       setShowClientInput(false);
   };
 
-  const resetSpreadsheetLink = () => {
-      if(window.confirm("Unlink current spreadsheet? The next push will create a new file.")) {
-          localStorage.removeItem('gml_target_sheet_id');
-          setLinkedSheetId(null);
+  const resetSpreadsheetLink = async () => {
+      if(window.confirm("CAUTION: This will unlink the Master Sheet for ALL USERS.\n\nOnly do this if the sheet is deleted or you need a brand new master file.\nAre you sure you want to disconnect?")) {
+          try {
+            await saveGlobalSheetId(null);
+            setLinkedSheetId(null);
+          } catch (e: any) {
+            alert("Failed to reset: " + e.message);
+          }
       }
   };
 
@@ -249,7 +267,7 @@ const FGSoraReporter: React.FC = () => {
           else if (viewPeriod === 'monthly') periodLabel = `Monthly Report: ${selectedMonth}`;
           else periodLabel = `Yearly Report: ${selectedYear}`;
 
-          let spreadsheetId = localStorage.getItem('gml_target_sheet_id');
+          let spreadsheetId = linkedSheetId; // Use global ID
           const timestamp = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'});
           const sheetTitle = viewPeriod === 'daily' 
             ? `${selectedDate} (${timestamp})`
@@ -266,8 +284,8 @@ const FGSoraReporter: React.FC = () => {
               if (createData.error) throw new Error(createData.error.message);
               
               spreadsheetId = createData.spreadsheetId;
-              localStorage.setItem('gml_target_sheet_id', spreadsheetId!);
-              setLinkedSheetId(spreadsheetId!);
+              // SAVE GLOBALLY TO FIRESTORE
+              await saveGlobalSheetId(spreadsheetId!);
           }
 
           // 2. Add New Sheet (Tab)
@@ -279,10 +297,12 @@ const FGSoraReporter: React.FC = () => {
           
           const addSheetData = await addSheetRes.json();
           if (addSheetData.error) {
-              if (addSheetData.error.message.includes('Requested entity was not found')) {
-                  localStorage.removeItem('gml_target_sheet_id');
-                  setLinkedSheetId(null);
-                  throw new Error("Linked Spreadsheet not found. It may have been deleted. Please try again to create a new one.");
+              if (addSheetData.error.message.includes('Requested entity was not found') || addSheetData.error.code === 404) {
+                  await saveGlobalSheetId(null); // Reset if deleted
+                  throw new Error("Linked Spreadsheet not found. It may have been deleted. Global link reset. Please try again to create a new one.");
+              }
+              if (addSheetData.error.code === 403) {
+                  throw new Error("Access Denied. You do not have permission to edit this Unified Master Sheet. Ask the owner to share it with you.");
               }
               throw new Error(`Failed to create tab: ${addSheetData.error.message}`);
           }
@@ -290,14 +310,6 @@ const FGSoraReporter: React.FC = () => {
           const newSheetId = addSheetData.replies[0].addSheet.properties.sheetId;
 
           // 3. Prepare Data Layout
-          // Row 1: Title
-          // Row 2: Subtitle
-          // Row 3: Empty
-          // Row 4-6: Metadata
-          // Row 7: Empty
-          // Row 8: Table Header
-          // Row 9+: Data
-          
           const titleRows = [
               ["SYSTEM ERROR REPORT"],
               ["FGSORA.COM Monitoring Log"],
@@ -327,9 +339,12 @@ const FGSoraReporter: React.FC = () => {
               body: JSON.stringify({ values: allValues })
           });
 
-          if (!writeRes.ok) throw new Error("Failed to write data");
+          if (!writeRes.ok) {
+              const err = await writeRes.json();
+              throw new Error(err.error?.message || "Failed to write data");
+          }
 
-          // 5. Apply Styles (The "Design")
+          // 5. Apply Styles
           const batchUpdateRequests = [
               // 1. Merge & Style Main Title (A1:F1)
               {
@@ -426,7 +441,7 @@ const FGSoraReporter: React.FC = () => {
               body: JSON.stringify({ requests: batchUpdateRequests })
           });
 
-          if (window.confirm(`Success! Added new tab "${sheetTitle}" with styling.\n\nOpen Spreadsheet now?`)) {
+          if (window.confirm(`Success! Added new tab "${sheetTitle}" to the Unified Master Report.\n\nOpen Spreadsheet now?`)) {
               window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}`, '_blank');
           }
 
@@ -674,7 +689,9 @@ const FGSoraReporter: React.FC = () => {
                                 value={gClientId}
                                 onChange={(e) => setGClientId(e.target.value)}
                             />
-                            <p className="text-xs text-gray-500">Required for authentication.</p>
+                            <p className="text-xs text-gray-500">
+                                Default ID provided. Change only if using custom Cloud Project.
+                            </p>
                         </div>
 
                         <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 space-y-2">
@@ -691,9 +708,20 @@ const FGSoraReporter: React.FC = () => {
                                     </button>
                                 )}
                             </div>
+                            {linkedSheetId ? (
+                                <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-300">
+                                    <strong className="block mb-1">Unified Mode Active</strong>
+                                    All users pushing reports will write to this Master Sheet.
+                                </div>
+                            ) : (
+                                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-300">
+                                    No Master Sheet linked. The first user to push will create the Unified Report.
+                                </div>
+                            )}
+                            
                             {linkedSheetId && (
                                 <button onClick={resetSpreadsheetLink} className="w-full mt-2 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded-lg text-xs transition-colors border border-red-500/20">
-                                    <RefreshCcw className="w-3 h-3" /> Unlink / Reset Sheet
+                                    <RefreshCcw className="w-3 h-3" /> Unlink Master Sheet (Affects Everyone)
                                 </button>
                             )}
                         </div>
