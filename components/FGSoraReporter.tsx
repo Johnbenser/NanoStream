@@ -12,6 +12,7 @@ declare global {
 }
 
 const DEFAULT_CLIENT_ID = "959817507774-rris7kg0sh6vh9dv304u4evmcjv0m62j.apps.googleusercontent.com";
+const MASTER_SHEET_ID = "1bR9fyPMHB38Di9rqGyWIAt668Opf3VUnaCGf97iB--c";
 
 const FGSoraReporter: React.FC = () => {
   // Form State
@@ -52,8 +53,9 @@ const FGSoraReporter: React.FC = () => {
     }
 
     // 2. Subscribe to GLOBAL Sheet ID (Unified Report)
+    // If no custom ID is set in Firebase, use the hardcoded MASTER_SHEET_ID
     const unsubscribeSheet = subscribeToGlobalSheetId((id) => {
-        setLinkedSheetId(id);
+        setLinkedSheetId(id || MASTER_SHEET_ID);
     });
 
     // 3. Subscribe to Errors
@@ -240,7 +242,8 @@ const FGSoraReporter: React.FC = () => {
       if(window.confirm("CAUTION: This will unlink the Master Sheet for ALL USERS.\n\nOnly do this if the sheet is deleted or you need a brand new master file.\nAre you sure you want to disconnect?")) {
           try {
             await saveGlobalSheetId(null);
-            setLinkedSheetId(null);
+            setLinkedSheetId(null); // This will technically trigger the useEffect again and set it back to MASTER_SHEET_ID
+            alert("Sheet link reset. If a Master Sheet ID is hardcoded in the app, it will revert to that default.");
           } catch (e: any) {
             alert("Failed to reset: " + e.message);
           }
@@ -298,8 +301,11 @@ const FGSoraReporter: React.FC = () => {
           const addSheetData = await addSheetRes.json();
           if (addSheetData.error) {
               if (addSheetData.error.message.includes('Requested entity was not found') || addSheetData.error.code === 404) {
-                  await saveGlobalSheetId(null); // Reset if deleted
-                  throw new Error("Linked Spreadsheet not found. It may have been deleted. Global link reset. Please try again to create a new one.");
+                  // Only wipe DB if it wasn't the hardcoded master
+                  if (spreadsheetId !== MASTER_SHEET_ID) {
+                      await saveGlobalSheetId(null); 
+                  }
+                  throw new Error("Linked Spreadsheet not found or deleted. Please check permissions or reset the link.");
               }
               if (addSheetData.error.code === 403) {
                   throw new Error("Access Denied. You do not have permission to edit this Unified Master Sheet. Ask the owner to share it with you.");
@@ -700,7 +706,7 @@ const FGSoraReporter: React.FC = () => {
                             </label>
                             <div className="flex items-center justify-between">
                                 <div className="text-sm text-gray-300 font-mono truncate max-w-[200px]">
-                                    {linkedSheetId ? linkedSheetId : 'Not connected'}
+                                    {linkedSheetId ? linkedSheetId : 'Not connected (Will use default Master)'}
                                 </div>
                                 {linkedSheetId && (
                                     <button onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${linkedSheetId}`, '_blank')} className="text-blue-400 hover:underline text-xs">
@@ -715,13 +721,13 @@ const FGSoraReporter: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-300">
-                                    No Master Sheet linked. The first user to push will create the Unified Report.
+                                    Using System Default Master Spreadsheet.
                                 </div>
                             )}
                             
                             {linkedSheetId && (
                                 <button onClick={resetSpreadsheetLink} className="w-full mt-2 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded-lg text-xs transition-colors border border-red-500/20">
-                                    <RefreshCcw className="w-3 h-3" /> Unlink Master Sheet (Affects Everyone)
+                                    <RefreshCcw className="w-3 h-3" /> Unlink / Reset to Default
                                 </button>
                             )}
                         </div>
