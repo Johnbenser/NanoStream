@@ -271,8 +271,10 @@ const FGSoraReporter: React.FC = () => {
           else periodLabel = `Yearly Report: ${selectedYear}`;
 
           let spreadsheetId = linkedSheetId; // Use global ID
-          const timestamp = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'});
-          const sheetTitle = viewPeriod === 'daily' 
+          
+          // Use seconds in timestamp to avoid collision: HH:mm:ss
+          const timestamp = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', second: '2-digit'});
+          let sheetTitle = viewPeriod === 'daily' 
             ? `${selectedDate} (${timestamp})`
             : `${selectedMonth} Report (${timestamp})`;
 
@@ -292,13 +294,27 @@ const FGSoraReporter: React.FC = () => {
           }
 
           // 2. Add New Sheet (Tab)
-          const addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+          let addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
           });
           
-          const addSheetData = await addSheetRes.json();
+          let addSheetData = await addSheetRes.json();
+
+          // 2b. Retry Logic for "Already Exists" error
+          if (addSheetData.error && addSheetData.error.message.includes('already exists')) {
+              console.warn("Sheet name collision detected. Retrying with unique suffix...");
+              // Append a random suffix to make it unique
+              sheetTitle = `${sheetTitle}_${Date.now().toString().slice(-4)}`;
+              addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
+              });
+              addSheetData = await addSheetRes.json();
+          }
+
           if (addSheetData.error) {
               if (addSheetData.error.message.includes('Requested entity was not found') || addSheetData.error.code === 404) {
                   // Only wipe DB if it wasn't the hardcoded master
