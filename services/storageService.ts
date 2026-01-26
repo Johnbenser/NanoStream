@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from './firebase';
-import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo, ContentPlan, FGSoraError } from '../types';
+import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo, ContentPlan, FGSoraError, VaultAccount } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
 const CLIENTS_COLLECTION = 'clients'; // New collection for Brand Clients
@@ -24,6 +24,7 @@ const REPORTS_COLLECTION = 'reported_videos';
 const PLANS_COLLECTION = 'content_plans';
 const FGSORA_COLLECTION = 'fgsora_errors';
 const SETTINGS_COLLECTION = 'settings';
+const VAULT_COLLECTION = 'account_vault';
 
 // --- REAL-TIME LISTENERS ---
 
@@ -185,6 +186,23 @@ export const subscribeToGlobalSheetId = (
   }, (error) => {
     console.warn("Settings sync warning:", error.code);
     onData(null);
+  });
+};
+
+export const subscribeToVault = (
+  onData: (accounts: VaultAccount[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, VAULT_COLLECTION), orderBy('updatedAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const accounts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as VaultAccount[];
+    onData(accounts);
+  }, (error) => {
+    console.error("Vault Sync Error:", error);
+    if(onError) onError(error);
   });
 };
 
@@ -431,6 +449,37 @@ export const deleteFGSoraError = async (id: string): Promise<void> => {
     await deleteDoc(doc(db, FGSORA_COLLECTION, id));
   } catch (e) {
     console.error("Error deleting FGSora error:", e);
+    throw e;
+  }
+};
+
+export const saveVaultAccount = async (data: Omit<VaultAccount, 'id' | 'updatedAt'>, id?: string): Promise<void> => {
+  try {
+    if (id) {
+      await updateDoc(doc(db, VAULT_COLLECTION, id), {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      addLog('UPDATE', `Vault Account: ${data.username}`);
+    } else {
+      await addDoc(collection(db, VAULT_COLLECTION), {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      addLog('CREATE', `Vault Account: ${data.username}`);
+    }
+  } catch (e) {
+    console.error("Error saving vault account:", e);
+    throw e;
+  }
+};
+
+export const deleteVaultAccount = async (id: string, username: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, VAULT_COLLECTION, id));
+    addLog('DELETE', `Vault Account: ${username}`);
+  } catch (e) {
+    console.error("Error deleting vault account:", e);
     throw e;
   }
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -17,6 +18,7 @@ import ResourceLinks from './components/ResourceLinks';
 import BrandManager from './components/BrandManager'; 
 import ReportedContent from './components/ReportedContent'; 
 import ViralReportGenerator from './components/ViralReportGenerator'; // New Import
+import AccountVault from './components/AccountVault'; // New Import
 import Login from './components/Login';
 import { ViewState, Creator, ReportedVideo } from './types';
 import { subscribeToCreators, subscribeToClients, subscribeToReports } from './services/storageService';
@@ -255,6 +257,10 @@ const App: React.FC = () => {
 
       {activeView === ViewState.VIRAL_REPORT && (
         <ViralReportGenerator />
+      )}
+
+      {activeView === ViewState.VAULT && (
+        <AccountVault />
       )}
 
       {activeView === ViewState.TOOLS && (

@@ -1,5 +1,4 @@
 
-
 export interface VideoUpload {
   id: string;
   title: string; 
@@ -124,6 +123,17 @@ export interface ContentPlan {
   createdAt: string;
 }
 
+export interface VaultAccount {
+  id: string;
+  platform: string; // e.g., 'TikTok'
+  username: string;
+  password?: string; // Main/Platform Password
+  emailPassword?: string; // Secondary/Outlook Password
+  secretKey?: string; // TOTP Secret
+  notes?: string;
+  updatedAt: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   assumptions: string[];
@@ -172,14 +182,15 @@ export interface User {
 
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
-  CLIENTS = 'CLIENTS', // New Client Brand Section
+  CLIENTS = 'CLIENTS', 
   CREATORS = 'CREATORS',
   BRANDS = 'BRANDS',
   TOOLS = 'TOOLS',
-  PLANNER = 'PLANNER', // Renamed from CHATGPT
-  VIRAL_REPORT = 'VIRAL_REPORT', // NEW: Exclusive Single Video Report
+  PLANNER = 'PLANNER', 
+  VIRAL_REPORT = 'VIRAL_REPORT', 
   REPORTS = 'REPORTS',
   LINKS = 'LINKS',
   LOGS = 'LOGS',
   USERS = 'USERS',
+  VAULT = 'VAULT', // New View
 }
