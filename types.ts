@@ -131,6 +131,7 @@ export interface VaultAccount {
   emailPassword?: string; // Secondary/Outlook Password
   secretKey?: string; // TOTP Secret
   notes?: string;
+  status?: string; // 'GOOD ACC.', 'RESTRICTED', etc.
   updatedAt: string;
 }
 
