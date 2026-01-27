@@ -132,6 +132,7 @@ export interface VaultAccount {
   secretKey?: string; // TOTP Secret
   notes?: string;
   status?: string; // 'GOOD ACC.', 'RESTRICTED', etc.
+  customOrder?: number; // Sorting order for reports (1, 2, 3...)
   updatedAt: string;
 }
 

@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Lock, Copy, Eye, EyeOff, Shield, Check, X, Smartphone, Mail, ShieldCheck, AlertTriangle, AtSign, Grid, Wifi, Battery, Signal, Activity } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Lock, Copy, Eye, EyeOff, Shield, Check, X, Smartphone, Mail, ShieldCheck, AlertTriangle, AtSign, Grid, Wifi, Battery, Signal, Activity, FileSpreadsheet, ListOrdered } from 'lucide-react';
 import * as OTPAuth from 'otpauth';
 import { VaultAccount } from '../types';
 import { subscribeToVault, saveVaultAccount, deleteVaultAccount } from '../services/storageService';
+
+interface AccountVaultProps {
+  currentUser?: string;
+}
 
 // --- SUB-COMPONENT: 3D PHONE ---
 const PhoneDevice: React.FC<{
@@ -177,7 +181,7 @@ const PhoneDevice: React.FC<{
     );
 };
 
-const AccountVault: React.FC = () => {
+const AccountVault: React.FC<AccountVaultProps> = ({ currentUser }) => {
   const [accounts, setAccounts] = useState<VaultAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -194,7 +198,8 @@ const AccountVault: React.FC = () => {
     emailPassword: '',
     secretKey: '',
     notes: '',
-    status: 'GOOD ACC.'
+    status: 'GOOD ACC.',
+    customOrder: 0
   });
   
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
@@ -226,7 +231,8 @@ const AccountVault: React.FC = () => {
         emailPassword: account.emailPassword || '',
         secretKey: account.secretKey || '',
         notes: account.notes || '',
-        status: account.status || 'GOOD ACC.'
+        status: account.status || 'GOOD ACC.',
+        customOrder: account.customOrder || 0
       });
     } else {
       setEditingId(null);
@@ -237,7 +243,8 @@ const AccountVault: React.FC = () => {
         emailPassword: '',
         secretKey: '',
         notes: '',
-        status: 'GOOD ACC.'
+        status: 'GOOD ACC.',
+        customOrder: 0
       });
     }
     setIsModalOpen(true);
@@ -249,7 +256,8 @@ const AccountVault: React.FC = () => {
       const cleanSecret = formData.secretKey ? formData.secretKey.replace(/\s/g, '').toUpperCase() : '';
       await saveVaultAccount({
         ...formData,
-        secretKey: cleanSecret
+        secretKey: cleanSecret,
+        customOrder: formData.customOrder ? Number(formData.customOrder) : 0
       } as any, editingId || undefined);
       setIsModalOpen(false);
     } catch (e) {
@@ -277,6 +285,197 @@ const AccountVault: React.FC = () => {
       else newSet.add(id);
       return newSet;
     });
+  };
+
+  // --- EXPORT FUNCTION ---
+  const handleExportExcel = () => {
+    const generateDate = new Date().toLocaleString();
+    
+    // Helper function for custom sorting
+    const sortAccounts = (list: VaultAccount[]) => {
+        return [...list].sort((a, b) => {
+            // Primary Sort: Custom Order
+            // Use Number.MAX_SAFE_INTEGER for items without an order so they go to the bottom
+            const orderA = (a.customOrder !== undefined && a.customOrder !== null && a.customOrder > 0) ? a.customOrder : Number.MAX_SAFE_INTEGER;
+            const orderB = (b.customOrder !== undefined && b.customOrder !== null && b.customOrder > 0) ? b.customOrder : Number.MAX_SAFE_INTEGER;
+
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+
+            // Secondary Sort: Email Pattern Priority (Legacy)
+            const emailA = (a.username || '').toLowerCase();
+            const emailB = (b.username || '').toLowerCase();
+
+            const getPriority = (email: string) => {
+                if (email.includes('callocloph')) return 1;
+                if (email.includes('omnicloph')) return 2;
+                if (email.includes('client')) return 3;
+                return 4;
+            };
+
+            const priorityA = getPriority(emailA);
+            const priorityB = getPriority(emailB);
+
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            return emailA.localeCompare(emailB);
+        });
+    };
+
+    // Split accounts into Android and Standard/iOS
+    const androidAccounts = accounts.filter(acc => {
+        const notes = (acc.notes || '').toLowerCase();
+        return notes.includes('redmi') || notes.includes('android');
+    });
+    
+    const standardAccounts = accounts.filter(acc => {
+        const notes = (acc.notes || '').toLowerCase();
+        return !(notes.includes('redmi') || notes.includes('android'));
+    });
+
+    // Sort both groups independently using the logic including Custom Order
+    const sortedAndroid = sortAccounts(androidAccounts);
+    const sortedStandard = sortAccounts(standardAccounts);
+
+    // Calculate Summary (Global)
+    const summaryCounts = accounts.reduce((acc, curr) => {
+        const status = curr.status || 'OTHER';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const summaryHtml = Object.entries(summaryCounts).map(([status, count]) => 
+        `<div style="display:inline-block; margin: 0 10px; padding: 5px 10px; background: #f3f4f6; border-radius: 4px; font-size: 11px;">
+            <strong>${status}:</strong> ${count}
+         </div>`
+    ).join('');
+
+    // Row Generator Function
+    const generateRows = (list: VaultAccount[]) => list.map(acc => `
+      <tr>
+        <td><strong>${acc.platform}</strong></td>
+        <td>${acc.username}</td>
+        <td style="font-family:monospace;">${acc.password || ''}</td>
+        <td style="font-family:monospace;">${acc.emailPassword || ''}</td>
+        <td style="font-family:monospace;">${acc.secretKey || ''}</td>
+        <td><span class="status-badge">${acc.status || 'UNKNOWN'}</span></td>
+        <td>${acc.notes || ''}</td>
+        <td>${new Date(acc.updatedAt).toLocaleDateString()}</td>
+      </tr>
+    `).join('');
+
+    const standardRows = generateRows(sortedStandard);
+    const androidRows = generateRows(sortedAndroid);
+
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #ffffff; color: #333; }
+          .header { background-color: #ffffff; padding: 40px 20px; border-bottom: 4px solid #10b981; text-align: center; }
+          .brand { font-size: 28px; font-weight: 900; color: #111827; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+          .report-badge {
+            background-color: #1f2937;
+            color: #ffffff;
+            padding: 8px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            display: inline-block;
+          }
+          
+          /* Centered Meta Container */
+          .meta-container { margin: 20px auto; width: 90%; border: 1px solid #e5e7eb; padding: 20px; background-color: #f9fafb; font-size: 12px; color: #374151; text-align: center; }
+          
+          .summary-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb; }
+          
+          .section-title { background-color: #e5e7eb; color: #111827; padding: 10px; font-weight: bold; font-size: 14px; text-transform: uppercase; margin-top: 30px; border-left: 5px solid #10b981; }
+          
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+          th { background-color: #064e3b; color: #ffffff; padding: 12px 10px; text-align: left; text-transform: uppercase; font-size: 11px; border: 1px solid #065f46; }
+          td { padding: 10px; border: 1px solid #e5e7eb; color: #1f2937; vertical-align: top; }
+          tr:nth-child(even) { background-color: #ecfdf5; }
+          .status-badge { font-weight: bold; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 10px; display: inline-block; background: #fff; }
+          .footer { margin-top: 30px; font-size: 10px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">Global Media Live</div>
+          <div class="report-badge">Secure Account Vault Export</div>
+        </div>
+        
+        <div class="meta-container">
+           <div style="margin-bottom:5px;"><strong>Generated By:</strong> ${currentUser || 'System User'}</div>
+           <div style="margin-bottom:5px;"><strong>Generated On:</strong> ${generateDate}</div>
+           <div style="margin-bottom:15px;"><strong>Source System:</strong> <a href="https://nano-stream.vercel.app/" style="color:#059669;">https://nano-stream.vercel.app/</a></div>
+           
+           <br/><br/>
+
+           <div class="summary-section">
+                <div style="font-weight:bold; margin-bottom:10px; text-transform:uppercase; color:#111827;">Account Status Summary (Total)</div>
+                ${summaryHtml}
+                <div style="margin-top:10px; font-weight:bold;">Total Accounts: ${accounts.length}</div>
+           </div>
+        </div>
+
+        <!-- IOS / STANDARD SECTION -->
+        <div class="section-title">Standard / iOS Devices (${sortedStandard.length})</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>TikTok Password</th>
+              <th>Email Password</th>
+              <th>2FA Secret</th>
+              <th>Status</th>
+              <th>Notes / Device</th>
+              <th>Last Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${standardRows}
+          </tbody>
+        </table>
+
+        <br/><br/>
+
+        <!-- ANDROID SECTION -->
+        <div class="section-title" style="border-left-color: #3b82f6;">Android Devices (${sortedAndroid.length})</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>TikTok Password</th>
+              <th>Email Password</th>
+              <th>2FA Secret</th>
+              <th>Status</th>
+              <th>Notes / Device</th>
+              <th>Last Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${androidRows}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+           CONFIDENTIAL DOCUMENT - DO NOT DISTRIBUTE WITHOUT AUTHORIZATION
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `GML_Vault_Export_${new Date().toISOString().split('T')[0]}.xls`;
+    link.click();
   };
 
   const getTotpData = (secret: string) => {
@@ -312,8 +511,8 @@ const AccountVault: React.FC = () => {
       filteredAccounts.forEach(acc => {
           const notes = (acc.notes || '').toLowerCase().trim();
           
-          // FILTER: Skip empty notes or "not yet logged in"
-          if (!notes || notes.includes('not yet logged in')) {
+          // FILTER: Skip empty notes or "not yet logged in" OR explicitly non-existent accounts
+          if (!notes || notes.includes('not yet logged in') || acc.status === "Account doesn't exist in TK") {
               return;
           }
           
@@ -435,6 +634,15 @@ const AccountVault: React.FC = () => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                   />
                </div>
+               
+               <button 
+                 onClick={handleExportExcel}
+                 className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2.5 rounded-lg font-bold flex items-center gap-2 border border-gray-600 transition-all"
+                 title="Export to Excel"
+               >
+                 <FileSpreadsheet className="w-4 h-4" /> <span className="hidden lg:inline">Export</span>
+               </button>
+
                <button 
                  onClick={() => handleOpenModal()}
                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all whitespace-nowrap"
@@ -461,6 +669,7 @@ const AccountVault: React.FC = () => {
                                     <div className={`text-[10px] font-bold px-2 py-1 rounded inline-block mt-1 border ${
                                         account.status === 'GOOD ACC.' ? 'bg-green-900/20 text-green-400 border-green-500/30' :
                                         account.status === 'RESTRICTED FROM SELLING' ? 'bg-red-900/20 text-red-400 border-red-500/30' :
+                                        account.status === "Account doesn't exist in TK" ? 'bg-gray-700/50 text-gray-400 border-gray-600' :
                                         'bg-yellow-900/20 text-yellow-400 border-yellow-500/30'
                                     }`}>
                                         {account.status}
@@ -568,6 +777,14 @@ const AccountVault: React.FC = () => {
                                     {account.notes}
                                 </div>
                             )}
+                            
+                            {account.customOrder && account.customOrder > 0 && (
+                                <div className="mt-2 flex justify-end">
+                                    <span className="text-[9px] text-blue-300 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-500/20">
+                                        Position #{account.customOrder}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                     );
@@ -610,20 +827,37 @@ const AccountVault: React.FC = () => {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
-                                <Activity className="w-3 h-3 text-emerald-400" /> Account Status
-                            </label>
-                            <select
-                                className="w-full bg-gray-900 border border-gray-700 text-white rounded p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                                value={formData.status || 'GOOD ACC.'}
-                                onChange={e => setFormData({...formData, status: e.target.value})}
-                            >
-                                <option>GOOD ACC.</option>
-                                <option>RESTRICTED FROM SELLING</option>
-                                <option>RECONSTRUCTING/ALGO. TRAIN</option>
-                                <option>OTHER</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                                    <Activity className="w-3 h-3 text-emerald-400" /> Account Status
+                                </label>
+                                <select
+                                    className="w-full bg-gray-900 border border-gray-700 text-white rounded p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    value={formData.status || 'GOOD ACC.'}
+                                    onChange={e => setFormData({...formData, status: e.target.value})}
+                                >
+                                    <option>GOOD ACC.</option>
+                                    <option>RESTRICTED FROM SELLING</option>
+                                    <option>RECONSTRUCTING/ALGO. TRAIN</option>
+                                    <option>Account doesn't exist in TK</option>
+                                    <option>OTHER</option>
+                                </select>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                                    <ListOrdered className="w-3 h-3 text-blue-400" /> Report Position
+                                </label>
+                                <input 
+                                    type="number"
+                                    min="0"
+                                    className="w-full bg-gray-900 border border-gray-700 text-white rounded p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Auto"
+                                    value={formData.customOrder || ''}
+                                    onChange={e => setFormData({...formData, customOrder: parseInt(e.target.value) || 0})}
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">

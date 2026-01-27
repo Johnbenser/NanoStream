@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -260,7 +259,7 @@ const App: React.FC = () => {
       )}
 
       {activeView === ViewState.VAULT && (
-        <AccountVault />
+        <AccountVault currentUser={user.email} />
       )}
 
       {activeView === ViewState.TOOLS && (
