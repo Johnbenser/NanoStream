@@ -125,12 +125,14 @@ export interface ContentPlan {
 
 export interface VaultAccount {
   id: string;
-  platform: string; // e.g., 'TikTok'
-  username: string;
+  platform?: string; // Made optional as it is removed from UI
+  username: string; // Used for Email
+  handle?: string; // Used for Username/Handle
   password?: string; // Main/Platform Password
   emailPassword?: string; // Secondary/Outlook Password
   secretKey?: string; // TOTP Secret
   notes?: string;
+  device?: string; // New field for manual device assignment
   status?: string; // 'GOOD ACC.', 'RESTRICTED', etc.
   customOrder?: number; // Sorting order for reports (1, 2, 3...)
   updatedAt: string;

@@ -1,68 +1,37 @@
-
+import { db, auth, storage } from './firebase';
 import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  onSnapshot, 
-  query, 
-  orderBy,
-  serverTimestamp,
-  setDoc
+  collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, query, orderBy 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, auth, storage } from './firebase';
-import { Creator, CreatorFormData, LogEntry, ResourceLink, BrandProduct, ReportedVideo, ContentPlan, FGSoraError, VaultAccount } from '../types';
+import { 
+  Creator, CreatorFormData, ResourceLink, BrandProduct, ReportedVideo, 
+  FGSoraError, ContentPlan, LogEntry, VaultAccount 
+} from '../types';
 
 const CREATORS_COLLECTION = 'creators';
-const CLIENTS_COLLECTION = 'clients'; // New collection for Brand Clients
-const LOGS_COLLECTION = 'logs';
+const CLIENTS_COLLECTION = 'clients';
 const RESOURCES_COLLECTION = 'resources';
 const BRANDS_COLLECTION = 'brand_products';
 const REPORTS_COLLECTION = 'reported_videos';
+const ERRORS_COLLECTION = 'fgsora_errors';
 const PLANS_COLLECTION = 'content_plans';
-const FGSORA_COLLECTION = 'fgsora_errors';
-const SETTINGS_COLLECTION = 'settings';
+const LOGS_COLLECTION = 'activity_logs';
 const VAULT_COLLECTION = 'account_vault';
+const SETTINGS_COLLECTION = 'settings';
 
-// --- REAL-TIME LISTENERS ---
-
-export const subscribeToCreators = (
-  onData: (creators: Creator[]) => void, 
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, CREATORS_COLLECTION), orderBy('lastUpdated', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const creators = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Creator[];
-    onData(creators);
-  }, (error) => {
-    console.error("Firebase Creators Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
-// New Subscription for Clients
-export const subscribeToClients = (
-  onData: (clients: Creator[]) => void, 
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, CLIENTS_COLLECTION), orderBy('lastUpdated', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const clients = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Creator[];
-    onData(clients);
-  }, (error) => {
-    console.error("Firebase Clients Sync Error:", error);
-    if (onError) onError(error);
-  });
+// --- LOGGING HELPER ---
+export const addLog = async (action: LogEntry['action'], target: string): Promise<void> => {
+  try {
+    const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
+    await addDoc(collection(db, LOGS_COLLECTION), {
+      action,
+      target,
+      user,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn("Failed to add log:", e);
+  }
 };
 
 export const subscribeToLogs = (
@@ -70,109 +39,16 @@ export const subscribeToLogs = (
   onError?: (error: any) => void
 ) => {
   const q = query(collection(db, LOGS_COLLECTION), orderBy('timestamp', 'desc'));
-  
   return onSnapshot(q, (snapshot) => {
     const logs = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as LogEntry[];
     onData(logs);
-  }, (error) => {
-    console.error("Firebase Logs Sync Error:", error);
-    if (onError) onError(error);
-  });
+  }, onError);
 };
 
-export const subscribeToResources = (
-  onData: (resources: ResourceLink[]) => void,
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, RESOURCES_COLLECTION), orderBy('createdAt', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const resources = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ResourceLink[];
-    onData(resources);
-  }, (error) => {
-    console.error("Firebase Resources Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
-export const subscribeToBrandProducts = (
-  onData: (products: BrandProduct[]) => void,
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, BRANDS_COLLECTION), orderBy('lastUpdated', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const products = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as BrandProduct[];
-    onData(products);
-  }, (error) => {
-    console.error("Firebase Brands Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
-export const subscribeToReports = (
-  onData: (reports: ReportedVideo[]) => void,
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, REPORTS_COLLECTION), orderBy('dateReported', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const reports = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ReportedVideo[];
-    onData(reports);
-  }, (error) => {
-    console.error("Firebase Reports Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
-export const subscribeToContentPlans = (
-  onData: (plans: ContentPlan[]) => void,
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, PLANS_COLLECTION), orderBy('date', 'asc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const plans = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ContentPlan[];
-    onData(plans);
-  }, (error) => {
-    console.error("Firebase Plans Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
-export const subscribeToFGSoraErrors = (
-  onData: (errors: FGSoraError[]) => void,
-  onError?: (error: any) => void
-) => {
-  const q = query(collection(db, FGSORA_COLLECTION), orderBy('timestamp', 'desc'));
-  
-  return onSnapshot(q, (snapshot) => {
-    const errors = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as FGSoraError[];
-    onData(errors);
-  }, (error) => {
-    console.error("Firebase FGSora Sync Error:", error);
-    if (onError) onError(error);
-  });
-};
-
+// --- SETTINGS / GLOBAL ---
 export const subscribeToGlobalSheetId = (
   onData: (id: string | null) => void
 ) => {
@@ -189,6 +65,256 @@ export const subscribeToGlobalSheetId = (
   });
 };
 
+export const saveGlobalSheetId = async (id: string | null): Promise<void> => {
+  try {
+    await setDoc(doc(db, SETTINGS_COLLECTION, 'fgsora_config'), {
+      sheetId: id,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Error saving global sheet ID:", e);
+    throw e;
+  }
+};
+
+export const subscribeToDeviceOrder = (
+  onData: (order: string[]) => void
+) => {
+  const docRef = doc(db, SETTINGS_COLLECTION, 'vault_device_order');
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      onData(docSnap.data().order || []);
+    } else {
+      onData([]);
+    }
+  }, (error) => {
+    console.warn("Device order sync warning:", error.code);
+  });
+};
+
+export const saveDeviceOrder = async (order: string[]): Promise<void> => {
+  try {
+    await setDoc(doc(db, SETTINGS_COLLECTION, 'vault_device_order'), {
+      order,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Error saving device order:", e);
+    throw e;
+  }
+};
+
+// --- CREATORS ---
+export const subscribeToCreators = (
+  onData: (creators: Creator[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, CREATORS_COLLECTION), orderBy('name', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const creators = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Creator[];
+    onData(creators);
+  }, onError);
+};
+
+export const saveCreator = async (data: CreatorFormData, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, CREATORS_COLLECTION, id), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('UPDATE', `Updated creator: ${data.name}`);
+  } else {
+    await addDoc(collection(db, CREATORS_COLLECTION), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('CREATE', `Created creator: ${data.name}`);
+  }
+};
+
+export const deleteCreator = async (id: string, name: string): Promise<void> => {
+  await deleteDoc(doc(db, CREATORS_COLLECTION, id));
+  await addLog('DELETE', `Deleted creator: ${name}`);
+};
+
+// --- CLIENTS ---
+export const subscribeToClients = (
+  onData: (clients: Creator[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, CLIENTS_COLLECTION), orderBy('name', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const clients = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Creator[];
+    onData(clients);
+  }, onError);
+};
+
+export const saveClient = async (data: CreatorFormData, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, CLIENTS_COLLECTION, id), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('UPDATE', `Updated client: ${data.name}`);
+  } else {
+    await addDoc(collection(db, CLIENTS_COLLECTION), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('CREATE', `Created client: ${data.name}`);
+  }
+};
+
+export const deleteClient = async (id: string, name: string): Promise<void> => {
+  await deleteDoc(doc(db, CLIENTS_COLLECTION, id));
+  await addLog('DELETE', `Deleted client: ${name}`);
+};
+
+// --- RESOURCES ---
+export const subscribeToResources = (
+  onData: (links: ResourceLink[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, RESOURCES_COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const links = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ResourceLink[];
+    onData(links);
+  }, onError);
+};
+
+export const saveResource = async (data: Omit<ResourceLink, 'id' | 'createdAt' | 'addedBy'>, id?: string): Promise<void> => {
+  const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
+  if (id) {
+    await updateDoc(doc(db, RESOURCES_COLLECTION, id), { ...data });
+    await addLog('UPDATE', `Updated resource: ${data.title}`);
+  } else {
+    await addDoc(collection(db, RESOURCES_COLLECTION), {
+      ...data,
+      addedBy: user,
+      createdAt: new Date().toISOString()
+    });
+    await addLog('CREATE', `Added resource: ${data.title}`);
+  }
+};
+
+export const deleteResource = async (id: string, title: string): Promise<void> => {
+  await deleteDoc(doc(db, RESOURCES_COLLECTION, id));
+  await addLog('DELETE', `Deleted resource: ${title}`);
+};
+
+// --- BRANDS / PRODUCTS ---
+export const subscribeToBrandProducts = (
+  onData: (products: BrandProduct[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, BRANDS_COLLECTION), orderBy('name', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as BrandProduct[];
+    onData(products);
+  }, onError);
+};
+
+export const saveBrandProduct = async (data: any, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, BRANDS_COLLECTION, id), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('UPDATE', `Updated product: ${data.name}`);
+  } else {
+    await addDoc(collection(db, BRANDS_COLLECTION), { ...data, lastUpdated: new Date().toISOString() });
+    await addLog('CREATE', `Created product: ${data.name}`);
+  }
+};
+
+export const deleteBrandProduct = async (id: string, name: string): Promise<void> => {
+  await deleteDoc(doc(db, BRANDS_COLLECTION, id));
+  await addLog('DELETE', `Deleted product: ${name}`);
+};
+
+// --- REPORTED CONTENT ---
+export const subscribeToReports = (
+  onData: (reports: ReportedVideo[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, REPORTS_COLLECTION), orderBy('dateReported', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const reports = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ReportedVideo[];
+    onData(reports);
+  }, onError);
+};
+
+export const saveReport = async (data: any, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, REPORTS_COLLECTION, id), data);
+    await addLog('UPDATE', `Updated report for: ${data.videoTitle}`);
+  } else {
+    await addDoc(collection(db, REPORTS_COLLECTION), data);
+    await addLog('CREATE', `Reported video: ${data.videoTitle}`);
+  }
+};
+
+export const deleteReport = async (id: string, title: string): Promise<void> => {
+  await deleteDoc(doc(db, REPORTS_COLLECTION, id));
+  await addLog('DELETE', `Deleted report for: ${title}`);
+};
+
+// --- CONTENT PLANS ---
+export const subscribeToContentPlans = (
+  onData: (plans: ContentPlan[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, PLANS_COLLECTION), orderBy('date', 'asc'));
+  return onSnapshot(q, (snapshot) => {
+    const plans = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ContentPlan[];
+    onData(plans);
+  }, onError);
+};
+
+export const saveContentPlan = async (data: any, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, PLANS_COLLECTION, id), data);
+    await addLog('UPDATE', `Updated plan: ${data.title}`);
+  } else {
+    await addDoc(collection(db, PLANS_COLLECTION), { ...data, createdAt: new Date().toISOString() });
+    await addLog('CREATE', `Planned content: ${data.title}`);
+  }
+};
+
+export const deleteContentPlan = async (id: string, title: string): Promise<void> => {
+  await deleteDoc(doc(db, PLANS_COLLECTION, id));
+  await addLog('DELETE', `Deleted plan: ${title}`);
+};
+
+// --- FG SORA ERRORS ---
+export const subscribeToFGSoraErrors = (
+  onData: (errors: FGSoraError[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, ERRORS_COLLECTION), orderBy('date', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const errors = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as FGSoraError[];
+    onData(errors);
+  }, onError);
+};
+
+export const saveFGSoraError = async (data: any): Promise<void> => {
+  await addDoc(collection(db, ERRORS_COLLECTION), { ...data, timestamp: new Date().toISOString() });
+  await addLog('CREATE', `Logged error: ${data.category}`);
+};
+
+export const deleteFGSoraError = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, ERRORS_COLLECTION, id));
+  await addLog('DELETE', `Deleted error log`);
+};
+
+// --- ACCOUNT VAULT ---
 export const subscribeToVault = (
   onData: (accounts: VaultAccount[]) => void,
   onError?: (error: any) => void
@@ -206,299 +332,24 @@ export const subscribeToVault = (
   });
 };
 
-// --- ACTIONS ---
-
-export const addLog = async (action: LogEntry['action'], target: string): Promise<void> => {
-  try {
-    const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
-    await addDoc(collection(db, LOGS_COLLECTION), {
-      action,
-      target,
-      user,
-      timestamp: new Date().toISOString()
-    });
-  } catch (e) {
-    // Silently fail for logs if permissions are strict
-    console.warn("Failed to add log (likely permission issue):", e);
-  }
-};
-
-export const saveGlobalSheetId = async (id: string | null): Promise<void> => {
-  try {
-    await setDoc(doc(db, SETTINGS_COLLECTION, 'fgsora_config'), {
-      sheetId: id,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (e) {
-    console.error("Error saving global sheet ID:", e);
-    throw e;
-  }
-};
-
-export const saveCreator = async (data: CreatorFormData, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      // Update existing
-      const creatorRef = doc(db, CREATORS_COLLECTION, id);
-      await updateDoc(creatorRef, {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('UPDATE', `Creator: ${data.name}`);
-    } else {
-      // Create new
-      await addDoc(collection(db, CREATORS_COLLECTION), {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('CREATE', `Creator: ${data.name}`);
-    }
-  } catch (e) {
-    console.error("Error saving creator:", e);
-    throw e;
-  }
-};
-
-export const deleteCreator = async (id: string, name: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, CREATORS_COLLECTION, id));
-    addLog('DELETE', `Creator: ${name}`);
-  } catch (e) {
-    console.error("Error deleting creator:", e);
-    throw e;
-  }
-};
-
-// --- CLIENT ACTIONS ---
-export const saveClient = async (data: CreatorFormData, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      const clientRef = doc(db, CLIENTS_COLLECTION, id);
-      await updateDoc(clientRef, {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('UPDATE', `Client: ${data.name}`);
-    } else {
-      await addDoc(collection(db, CLIENTS_COLLECTION), {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('CREATE', `Client: ${data.name}`);
-    }
-  } catch (e) {
-    console.error("Error saving client:", e);
-    throw e;
-  }
-};
-
-export const deleteClient = async (id: string, name: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, CLIENTS_COLLECTION, id));
-    addLog('DELETE', `Client: ${name}`);
-  } catch (e) {
-    console.error("Error deleting client:", e);
-    throw e;
-  }
-};
-
-export const saveResource = async (data: Omit<ResourceLink, 'id' | 'createdAt' | 'addedBy'>, id?: string): Promise<void> => {
-  try {
-    const user = auth.currentUser ? (auth.currentUser.email || 'Unknown') : 'System';
-    
-    if (id) {
-      // Update existing resource
-      const resourceRef = doc(db, RESOURCES_COLLECTION, id);
-      await updateDoc(resourceRef, {
-        ...data
-      });
-      addLog('UPDATE', `Resource Link: ${data.title}`);
-    } else {
-      // Create new resource
-      await addDoc(collection(db, RESOURCES_COLLECTION), {
-        ...data,
-        addedBy: user.split('@')[0], // Use username part
-        createdAt: new Date().toISOString()
-      });
-      addLog('CREATE', `Resource Link: ${data.title}`);
-    }
-  } catch (e) {
-    console.error("Error saving resource:", e);
-    throw e;
-  }
-};
-
-export const deleteResource = async (id: string, title: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, RESOURCES_COLLECTION, id));
-    addLog('DELETE', `Resource Link: ${title}`);
-  } catch (e) {
-    console.error("Error deleting resource:", e);
-    throw e;
-  }
-};
-
-export const saveBrandProduct = async (data: Omit<BrandProduct, 'id' | 'lastUpdated'>, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      const docRef = doc(db, BRANDS_COLLECTION, id);
-      await updateDoc(docRef, {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('UPDATE', `Product: ${data.name}`);
-    } else {
-      await addDoc(collection(db, BRANDS_COLLECTION), {
-        ...data,
-        lastUpdated: new Date().toISOString()
-      });
-      addLog('CREATE', `Product: ${data.name}`);
-    }
-  } catch (e) {
-    console.error("Error saving brand product:", e);
-    throw e;
-  }
-};
-
-export const deleteBrandProduct = async (id: string, name: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, BRANDS_COLLECTION, id));
-    addLog('DELETE', `Product: ${name}`);
-  } catch (e) {
-    console.error("Error deleting brand product:", e);
-    throw e;
-  }
-};
-
-export const saveReport = async (data: Omit<ReportedVideo, 'id'>, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      const docRef = doc(db, REPORTS_COLLECTION, id);
-      await updateDoc(docRef, {
-        ...data
-      });
-      addLog('UPDATE', `Report Case: ${data.videoTitle}`);
-    } else {
-      await addDoc(collection(db, REPORTS_COLLECTION), {
-        ...data
-      });
-      addLog('CREATE', `Report Case: ${data.videoTitle}`);
-    }
-  } catch (e) {
-    console.error("Error saving report:", e);
-    throw e;
-  }
-};
-
-export const deleteReport = async (id: string, title: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, REPORTS_COLLECTION, id));
-    addLog('DELETE', `Report Case: ${title}`);
-  } catch (e) {
-    console.error("Error deleting report:", e);
-    throw e;
-  }
-};
-
-export const saveContentPlan = async (data: Omit<ContentPlan, 'id' | 'createdAt'>, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      const docRef = doc(db, PLANS_COLLECTION, id);
-      await updateDoc(docRef, {
-        ...data
-      });
-      addLog('UPDATE', `Planned Content: ${data.title}`);
-    } else {
-      await addDoc(collection(db, PLANS_COLLECTION), {
-        ...data,
-        createdAt: new Date().toISOString()
-      });
-      addLog('CREATE', `Planned Content: ${data.title}`);
-    }
-  } catch (e) {
-    console.error("Error saving content plan:", e);
-    throw e;
-  }
-};
-
-export const deleteContentPlan = async (id: string, title: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, PLANS_COLLECTION, id));
-    addLog('DELETE', `Planned Content: ${title}`);
-  } catch (e) {
-    console.error("Error deleting content plan:", e);
-    throw e;
-  }
-};
-
-export const saveFGSoraError = async (data: Omit<FGSoraError, 'id' | 'timestamp'>): Promise<void> => {
-  try {
-    await addDoc(collection(db, FGSORA_COLLECTION), {
-      ...data,
-      timestamp: new Date().toISOString()
-    });
-    // Optional: addLog if needed, but this is a high-frequency action
-  } catch (e) {
-    console.error("Error saving FGSora error:", e);
-    throw e;
-  }
-};
-
-export const deleteFGSoraError = async (id: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, FGSORA_COLLECTION, id));
-  } catch (e) {
-    console.error("Error deleting FGSora error:", e);
-    throw e;
-  }
-};
-
-export const saveVaultAccount = async (data: Omit<VaultAccount, 'id' | 'updatedAt'>, id?: string): Promise<void> => {
-  try {
-    if (id) {
-      await updateDoc(doc(db, VAULT_COLLECTION, id), {
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-      addLog('UPDATE', `Vault Account: ${data.username}`);
-    } else {
-      await addDoc(collection(db, VAULT_COLLECTION), {
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-      addLog('CREATE', `Vault Account: ${data.username}`);
-    }
-  } catch (e) {
-    console.error("Error saving vault account:", e);
-    throw e;
+export const saveVaultAccount = async (data: any, id?: string): Promise<void> => {
+  if (id) {
+    await updateDoc(doc(db, VAULT_COLLECTION, id), { ...data, updatedAt: new Date().toISOString() });
+    await addLog('UPDATE', `Updated vault account: ${data.username}`);
+  } else {
+    await addDoc(collection(db, VAULT_COLLECTION), { ...data, updatedAt: new Date().toISOString() });
+    await addLog('CREATE', `Added vault account: ${data.username}`);
   }
 };
 
 export const deleteVaultAccount = async (id: string, username: string): Promise<void> => {
-  try {
-    await deleteDoc(doc(db, VAULT_COLLECTION, id));
-    addLog('DELETE', `Vault Account: ${username}`);
-  } catch (e) {
-    console.error("Error deleting vault account:", e);
-    throw e;
-  }
+  await deleteDoc(doc(db, VAULT_COLLECTION, id));
+  await addLog('DELETE', `Deleted vault account: ${username}`);
 };
 
-// --- FILE STORAGE ---
-
+// --- STORAGE UTILS ---
 export const uploadFile = async (file: File, path: string): Promise<string> => {
-  try {
-    const storageRef = ref(storage, path);
-    const snapshot = await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-  } catch (error: any) {
-    console.error("File upload failed:", error);
-    if (error.code === 'storage/unauthorized') {
-      throw new Error(
-        "Storage Permission Denied. Go to Firebase Console -> Storage -> Rules and change 'if false;' to 'if request.auth != null;'"
-      );
-    }
-    throw error;
-  }
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
 };
