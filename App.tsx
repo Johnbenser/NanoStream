@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -10,6 +11,8 @@ import CaptionGenerator from './components/CaptionGenerator';
 import CollageMaker from './components/CollageMaker';
 import CreditTracker from './components/CreditTracker';
 import FGSoraReporter from './components/FGSoraReporter'; // Import New Tool
+import ImageHost from './components/ImageHost'; // Import New Image Host Tool
+import PublicNotepad from './components/PublicNotepad'; // Import New Public Notepad
 import ContentPlanner from './components/ContentPlanner';
 import ActivityLogs from './components/ActivityLogs';
 import UserManagement from './components/UserManagement';
@@ -19,9 +22,9 @@ import ReportedContent from './components/ReportedContent';
 import ViralReportGenerator from './components/ViralReportGenerator'; // New Import
 import AccountVault from './components/AccountVault'; // New Import
 import Login from './components/Login';
-import { ViewState, Creator, ReportedVideo } from './types';
+import { ViewState, Creator, ReportedVideo } from '../types';
 import { subscribeToCreators, subscribeToClients, subscribeToReports } from './services/storageService';
-import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale, Bug } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale, Bug, Image as ImageIcon, FileText } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -34,10 +37,22 @@ const App: React.FC = () => {
   const [dbError, setDbError] = useState<string | null>(null);
 
   // Sub-navigation state for Tools View
-  const [activeTool, setActiveTool] = useState<'caption' | 'collage' | 'transparency' | 'fgsora'>('caption');
+  const [activeTool, setActiveTool] = useState<'caption' | 'collage' | 'transparency' | 'fgsora' | 'assets' | 'notepad'>('caption');
 
-  // 1. Auth Listener Effect
+  // URL Parameter Check for Public Notepad (Bypass Login)
+  const [publicNoteId, setPublicNoteId] = useState<string | null>(null);
+
   useEffect(() => {
+    // Check for ?note=xyz parameter
+    const params = new URLSearchParams(window.location.search);
+    const noteParam = params.get('note');
+    if (noteParam) {
+      setPublicNoteId(noteParam);
+      setLoading(false); // Stop loading immediately
+      return;
+    }
+
+    // Normal Auth Flow
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // Fetch Role
@@ -67,8 +82,8 @@ const App: React.FC = () => {
 
   // 2. Database Listener Effect (Dependent on User)
   useEffect(() => {
-    // Only subscribe to DB if user is logged in
-    if (!user) return;
+    // Only subscribe to DB if user is logged in AND not in public note mode
+    if (!user || publicNoteId) return;
 
     // Creators Subscription
     const unsubscribeCreators = subscribeToCreators(
@@ -107,13 +122,13 @@ const App: React.FC = () => {
       unsubscribeClients();
       unsubscribeReports();
     };
-  }, [user]); 
+  }, [user, publicNoteId]); 
 
   // 3. Session Timeout Enforcement (8 Hours)
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
 
-    if (user) {
+    if (user && !publicNoteId) {
       const SESSION_KEY = 'gml_session_start';
       const LIMIT_MS = 8 * 60 * 60 * 1000; // 8 hours
 
@@ -143,7 +158,7 @@ const App: React.FC = () => {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [user]);
+  }, [user, publicNoteId]);
 
   const handleDbError = (error: any) => {
     if (error.message && (error.message.includes('Cloud Firestore API') || error.code === 'permission-denied')) {
@@ -164,6 +179,8 @@ const App: React.FC = () => {
     setActiveView(ViewState.DASHBOARD);
   };
 
+  // --- RENDER LOGIC ---
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center space-y-4">
@@ -173,6 +190,12 @@ const App: React.FC = () => {
     );
   }
 
+  // PUBLIC NOTE VIEW (No Login Required)
+  if (publicNoteId) {
+    return <PublicNotepad noteId={publicNoteId} isPublicView={true} />;
+  }
+
+  // LOGIN VIEW
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
@@ -285,6 +308,18 @@ const App: React.FC = () => {
                  <LayoutGrid className="w-4 h-4" /> Collage Maker
                </button>
                <button 
+                 onClick={() => setActiveTool('assets')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'assets' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <ImageIcon className="w-4 h-4" /> Cloud Assets
+               </button>
+               <button 
+                 onClick={() => setActiveTool('notepad')}
+                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'notepad' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+               >
+                 <FileText className="w-4 h-4" /> Public Notepad
+               </button>
+               <button 
                  onClick={() => setActiveTool('transparency')}
                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTool === 'transparency' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
                >
@@ -301,6 +336,8 @@ const App: React.FC = () => {
           
           {activeTool === 'caption' ? <CaptionGenerator /> : 
            activeTool === 'collage' ? <CollageMaker /> : 
+           activeTool === 'assets' ? <ImageHost /> :
+           activeTool === 'notepad' ? <PublicNotepad /> :
            activeTool === 'transparency' ? <CreditTracker /> : 
            <FGSoraReporter />}
         </>

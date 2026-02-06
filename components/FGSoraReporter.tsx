@@ -1,221 +1,84 @@
-
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Upload, FileSpreadsheet, Loader2, Image as ImageIcon, X, CheckCircle, Bug, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, ExternalLink, Copy, FileText, Cloud, Settings, RefreshCcw, Link as LinkIcon } from 'lucide-react';
-import { uploadFile, saveFGSoraError, subscribeToFGSoraErrors, deleteFGSoraError, saveGlobalSheetId, subscribeToGlobalSheetId } from '../services/storageService';
 import { FGSoraError } from '../types';
-import { auth } from '../services/firebase';
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-const DEFAULT_CLIENT_ID = "959817507774-rris7kg0sh6vh9dv304u4evmcjv0m62j.apps.googleusercontent.com";
-const MASTER_SHEET_ID = "1bR9fyPMHB38Di9rqGyWIAt668Opf3VUnaCGf97iB--c";
+import { subscribeToFGSoraErrors, saveFGSoraError, deleteFGSoraError } from '../services/storageService';
+import { Bug, Plus, Trash2, Calendar, Download, Search, AlertCircle, X } from 'lucide-react';
 
 const FGSoraReporter: React.FC = () => {
-  // Form State
-  const [description, setDescription] = useState('');
-  const [steps, setSteps] = useState('');
-  const [errorType, setErrorType] = useState('Generation Failure');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [time, setTime] = useState(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Data State
   const [errors, setErrors] = useState<FGSoraError[]>([]);
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  
-  // View/Export State
-  const [viewPeriod, setViewPeriod] = useState<'daily' | 'monthly' | 'yearly'>('daily');
+  const [viewPeriod, setViewPeriod] = useState<'daily' | 'all'>('daily');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-
-  // Google Integration State
-  const [gDriveToken, setGDriveToken] = useState<string | null>(null);
-  const [gClientId, setGClientId] = useState<string>(DEFAULT_CLIENT_ID);
-  const [isPushingToDrive, setIsPushingToDrive] = useState(false);
-  const [showClientInput, setShowClientInput] = useState(false);
-  const [linkedSheetId, setLinkedSheetId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    category: 'Generation Failure',
+    description: '',
+    steps: '',
+    date: new Date().toISOString().split('T')[0],
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  });
 
   useEffect(() => {
-    // 1. Load Local Client ID Override or Default
-    const savedClientId = localStorage.getItem('gml_google_client_id');
-    if (savedClientId) {
-        setGClientId(savedClientId);
-    } else {
-        setGClientId(DEFAULT_CLIENT_ID);
-    }
-
-    // 2. Subscribe to GLOBAL Sheet ID (Unified Report)
-    // If no custom ID is set in Firebase, use the hardcoded MASTER_SHEET_ID
-    const unsubscribeSheet = subscribeToGlobalSheetId((id) => {
-        setLinkedSheetId(id || MASTER_SHEET_ID);
-    });
-
-    // 3. Subscribe to Errors
-    const unsubscribeErrors = subscribeToFGSoraErrors(
+    const unsubscribe = subscribeToFGSoraErrors(
       (data) => setErrors(data),
-      (error) => console.error("Error syncing logs", error)
+      (error) => console.error("Error loading logs", error)
     );
-
-    return () => {
-        unsubscribeSheet();
-        unsubscribeErrors();
-    };
+    return () => unsubscribe();
   }, []);
-  
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        setImageFile(file);
-        setUploading(true);
-        try {
-            const path = `fgsora_reports/${Date.now()}_${file.name}`;
-            const url = await uploadFile(file, path);
-            setImageUrl(url);
-        } catch (error) {
-            console.error("Upload failed", error);
-            alert("Failed to upload screenshot.");
-            setImageFile(null);
-        } finally {
-            setUploading(false);
-        }
+
+  const filteredErrors = errors.filter(err => {
+    if (viewPeriod === 'daily') {
+      return err.date === selectedDate;
+    }
+    return true;
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await saveFGSoraError(formData);
+      setIsModalOpen(false);
+      setFormData({ ...formData, description: '', steps: '' });
+    } catch (e) {
+      alert("Failed to save log.");
     }
   };
 
-  const clearImage = () => {
-      setImageFile(null);
-      setImageUrl(null);
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Delete this error log?")) {
+      await deleteFGSoraError(id);
+    }
   };
 
-  const handleLog = async () => {
-      if (!description) return;
-      setIsSubmitting(true);
-      try {
-          // Construct payload, conditionally adding imageUrl only if it exists
-          const payload: any = {
-              date,
-              time,
-              category: errorType,
-              description,
-              steps
-          };
-          
-          if (imageUrl) {
-              payload.imageUrl = imageUrl;
-          }
-
-          await saveFGSoraError(payload);
-          
-          // Reset Form
-          setDescription('');
-          setSteps('');
-          setImageUrl(null);
-          setImageFile(null);
-          setTime(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
-      } catch (e) {
-          alert("Failed to save log.");
-          console.error(e);
-      } finally {
-          setIsSubmitting(false);
-      }
-  };
-
-  const handleDelete = async (id: string, e?: React.MouseEvent) => {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      if (!id) return;
-
-      if(window.confirm("Are you sure you want to delete this error log?")) {
-          const previousErrors = [...errors];
-          setErrors(prev => prev.filter(item => item.id !== id));
-          try {
-            await deleteFGSoraError(id);
-          } catch (err) {
-            console.error("Delete operation failed:", err);
-            alert("Failed to delete item. It will reappear.");
-            setErrors(previousErrors);
-          }
-      }
-  };
-
-  // --- FILTER LOGIC ---
-  const getFilteredErrors = () => {
-      return errors.filter(e => {
-          if (viewPeriod === 'daily') return e.date === selectedDate;
-          if (viewPeriod === 'monthly') return e.date.startsWith(selectedMonth);
-          if (viewPeriod === 'yearly') return e.date.startsWith(selectedYear);
-          return false;
-      }).sort((a,b) => {
-          const dateComp = b.date.localeCompare(a.date);
-          if (dateComp !== 0) return dateComp;
-          return b.time.localeCompare(a.time);
-      });
-  };
-
-  const filteredErrors = getFilteredErrors();
-
-  // --- REPORT GENERATION (HTML for Excel) ---
   const generateReportHtml = () => {
-      const currentUser = auth.currentUser?.email || "Unknown User";
-      const generateDate = new Date().toLocaleString();
-      let periodLabel = '';
-      if (viewPeriod === 'daily') periodLabel = `Daily Report: ${selectedDate}`;
-      else if (viewPeriod === 'monthly') periodLabel = `Monthly Report: ${selectedMonth}`;
-      else periodLabel = `Yearly Report: ${selectedYear}`;
+    const rows = filteredErrors.map(e => `
+      <tr>
+        <td>${e.date}</td>
+        <td>${e.time}</td>
+        <td>${e.category}</td>
+        <td>${e.description}</td>
+        <td>${e.steps}</td>
+      </tr>
+    `).join('');
 
-      const tableRows = filteredErrors.map(log => {
-        const safeUrl = log.imageUrl ? log.imageUrl.replace(/&/g, '&amp;').replace(/%2F/g, '%252F') : '';
-        return `
-        <tr>
-            <td style="text-align:center;">${log.date}</td>
-            <td style="text-align:center;">${log.time}</td>
-            <td style="font-weight:bold; color: #dc2626;">${log.category}</td>
-            <td>${log.description}</td>
-            <td>${log.steps || '-'}</td>
-            <td style="text-align:center;">
-                ${safeUrl ? `<a href="${safeUrl}" style="color:blue; text-decoration:underline;">View Evidence</a>` : 'No Image'}
-            </td>
-        </tr>
-      `}).join('');
-
-      return `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-            <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
-            <style>
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #ffffff; }
-                .header-container { padding: 30px; text-align: center; border-bottom: 4px solid #dc2626; background-color: #1f2937; color: white; }
-                .report-title { font-size: 28px; font-weight: 900; margin: 0; letter-spacing: 1px; text-transform: uppercase; color: #fca5a5; }
-                .site-name { font-size: 16px; font-weight: bold; margin-top: 5px; color: #ffffff; }
-                .meta-table { width: 100%; margin: 20px 0; border: 1px solid #e5e7eb; }
-                .meta-label { font-weight: bold; background-color: #f3f4f6; padding: 8px; width: 200px; color: #374151; }
-                .meta-value { padding: 8px; color: #1f2937; }
-                table.data-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                table.data-table th { background-color: #7f1d1d; color: white; padding: 12px; text-align: left; border: 1px solid #991b1b; font-size: 12px; text-transform: uppercase; }
-                table.data-table td { padding: 10px; border: 1px solid #e5e7eb; vertical-align: top; font-size: 12px; color: #1f2937; }
-                table.data-table tr:nth-child(even) { background-color: #fef2f2; }
-            </style>
-        </head>
-        <body>
-            <div class="header-container"><div class="report-title">System Error Report</div><div class="site-name">FGSORA.COM Monitoring Log</div></div>
-            <table class="meta-table">
-                <tr><td class="meta-label">Report Period</td><td class="meta-value">${periodLabel}</td></tr>
-                <tr><td class="meta-label">Generated By</td><td class="meta-value">${currentUser}</td></tr>
-                <tr><td class="meta-label">Generated On</td><td class="meta-value">${generateDate}</td></tr>
-            </table>
-            <table class="data-table">
-                <thead><tr><th style="text-align:center;">Date</th><th style="text-align:center;">Time</th><th>Error Category</th><th>Description</th><th>Steps to Reproduce</th><th style="text-align:center;">Screenshot</th></tr></thead>
-                <tbody>${tableRows}</tbody>
-            </table>
-        </body>
-        </html>
-      `;
+    return `
+      <html>
+      <head><meta charset="UTF-8"></head>
+      <body>
+        <h3>FG SORA Error Report - ${viewPeriod === 'daily' ? selectedDate : 'All Time'}</h3>
+        <table border="1">
+          <thead>
+            <tr style="background-color:#fee2e2; font-weight:bold;">
+              <th>Date</th>
+              <th>Time</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th>Steps to Reproduce</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+      </html>
+    `;
   };
 
   const handleExport = () => {
@@ -229,533 +92,158 @@ const FGSoraReporter: React.FC = () => {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `${filename}.xls`;
+      document.body.appendChild(link);
       link.click();
-  };
-
-  // --- GOOGLE SHEETS API LOGIC ---
-  const saveSettings = () => {
-      localStorage.setItem('gml_google_client_id', gClientId);
-      setShowClientInput(false);
-  };
-
-  const resetSpreadsheetLink = async () => {
-      if(window.confirm("CAUTION: This will unlink the Master Sheet for ALL USERS.\n\nOnly do this if the sheet is deleted or you need a brand new master file.\nAre you sure you want to disconnect?")) {
-          try {
-            await saveGlobalSheetId(null);
-            setLinkedSheetId(null); // This will technically trigger the useEffect again and set it back to MASTER_SHEET_ID
-            alert("Sheet link reset. If a Master Sheet ID is hardcoded in the app, it will revert to that default.");
-          } catch (e: any) {
-            alert("Failed to reset: " + e.message);
-          }
-      }
-  };
-
-  // Helper to convert hex color to Google Sheets RGB (0-1 scale)
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        red: parseInt(result[1], 16) / 255,
-        green: parseInt(result[2], 16) / 255,
-        blue: parseInt(result[3], 16) / 255
-    } : { red: 1, green: 1, blue: 1 };
-  };
-
-  const pushToGoogleSheets = async (accessToken: string) => {
-      setIsPushingToDrive(true);
-      try {
-          const currentUser = auth.currentUser?.email || "Unknown User";
-          const generateDate = new Date().toLocaleString();
-          let periodLabel = '';
-          if (viewPeriod === 'daily') periodLabel = `Daily Report: ${selectedDate}`;
-          else if (viewPeriod === 'monthly') periodLabel = `Monthly Report: ${selectedMonth}`;
-          else periodLabel = `Yearly Report: ${selectedYear}`;
-
-          let spreadsheetId = linkedSheetId; // Use global ID
-          
-          // Use seconds in timestamp to avoid collision: HH:mm:ss
-          const timestamp = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', second: '2-digit'});
-          let sheetTitle = viewPeriod === 'daily' 
-            ? `${selectedDate} (${timestamp})`
-            : `${selectedMonth} Report (${timestamp})`;
-
-          // 1. Create Spreadsheet if not linked
-          if (!spreadsheetId) {
-              const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ properties: { title: 'Global Media Live - Master Reports' } })
-              });
-              const createData = await createRes.json();
-              if (createData.error) throw new Error(createData.error.message);
-              
-              spreadsheetId = createData.spreadsheetId;
-              // SAVE GLOBALLY TO FIRESTORE
-              await saveGlobalSheetId(spreadsheetId!);
-          }
-
-          // 2. Add New Sheet (Tab)
-          let addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
-          });
-          
-          let addSheetData = await addSheetRes.json();
-
-          // 2b. Retry Logic for "Already Exists" error
-          if (addSheetData.error && addSheetData.error.message.includes('already exists')) {
-              console.warn("Sheet name collision detected. Retrying with unique suffix...");
-              // Append a random suffix to make it unique
-              sheetTitle = `${sheetTitle}_${Date.now().toString().slice(-4)}`;
-              addSheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
-              });
-              addSheetData = await addSheetRes.json();
-          }
-
-          if (addSheetData.error) {
-              if (addSheetData.error.message.includes('Requested entity was not found') || addSheetData.error.code === 404) {
-                  // Only wipe DB if it wasn't the hardcoded master
-                  if (spreadsheetId !== MASTER_SHEET_ID) {
-                      await saveGlobalSheetId(null); 
-                  }
-                  throw new Error("Linked Spreadsheet not found or deleted. Please check permissions or reset the link.");
-              }
-              if (addSheetData.error.code === 403) {
-                  throw new Error("Access Denied. You do not have permission to edit this Unified Master Sheet. Ask the owner to share it with you.");
-              }
-              throw new Error(`Failed to create tab: ${addSheetData.error.message}`);
-          }
-
-          const newSheetId = addSheetData.replies[0].addSheet.properties.sheetId;
-
-          // 3. Prepare Data Layout
-          const titleRows = [
-              ["SYSTEM ERROR REPORT"],
-              ["FGSORA.COM Monitoring Log"],
-              [],
-              ["Report Period", periodLabel],
-              ["Generated By", currentUser],
-              ["Generated On", generateDate],
-              [],
-              ["Date", "Time", "Category", "Description", "Steps", "Image Evidence"] // Row 8
-          ];
-
-          const dataRows = filteredErrors.map(e => [
-              e.date, 
-              e.time, 
-              e.category, 
-              e.description, 
-              e.steps || '', 
-              e.imageUrl || ''
-          ]);
-
-          const allValues = [...titleRows, ...dataRows];
-
-          // 4. Write Values
-          const writeRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetTitle}!A1?valueInputOption=USER_ENTERED`, {
-              method: 'PUT',
-              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ values: allValues })
-          });
-
-          if (!writeRes.ok) {
-              const err = await writeRes.json();
-              throw new Error(err.error?.message || "Failed to write data");
-          }
-
-          // 5. Apply Styles
-          const batchUpdateRequests = [
-              // 1. Merge & Style Main Title (A1:F1)
-              {
-                  mergeCells: { range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 }, mergeType: "MERGE_ALL" }
-              },
-              {
-                  repeatCell: {
-                      range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
-                      cell: { userEnteredFormat: { 
-                          backgroundColor: hexToRgb("#1f2937"), 
-                          horizontalAlignment: "CENTER",
-                          textFormat: { foregroundColor: hexToRgb("#fca5a5"), fontSize: 18, bold: true }
-                      }},
-                      fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-                  }
-              },
-              // 2. Merge & Style Subtitle (A2:F2)
-              {
-                  mergeCells: { range: { sheetId: newSheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 6 }, mergeType: "MERGE_ALL" }
-              },
-              {
-                  repeatCell: {
-                      range: { sheetId: newSheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 6 },
-                      cell: { userEnteredFormat: { 
-                          backgroundColor: hexToRgb("#1f2937"), 
-                          horizontalAlignment: "CENTER",
-                          textFormat: { foregroundColor: hexToRgb("#ffffff"), fontSize: 12, bold: true }
-                      }},
-                      fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-                  }
-              },
-              // 3. Style Metadata Labels (A4:A6)
-              {
-                  repeatCell: {
-                      range: { sheetId: newSheetId, startRowIndex: 3, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 },
-                      cell: { userEnteredFormat: { 
-                          backgroundColor: hexToRgb("#f3f4f6"), 
-                          textFormat: { bold: true, foregroundColor: hexToRgb("#374151") }
-                      }},
-                      fields: "userEnteredFormat(backgroundColor,textFormat)"
-                  }
-              },
-              // 4. Style Table Headers (A8:F8) - Red Background
-              {
-                  repeatCell: {
-                      range: { sheetId: newSheetId, startRowIndex: 7, endRowIndex: 8, startColumnIndex: 0, endColumnIndex: 6 },
-                      cell: { userEnteredFormat: { 
-                          backgroundColor: hexToRgb("#7f1d1d"), 
-                          horizontalAlignment: "CENTER",
-                          textFormat: { foregroundColor: hexToRgb("#ffffff"), bold: true }
-                      }},
-                      fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-                  }
-              },
-              // 5. Set Column Widths (Description needs to be wider)
-              {
-                  updateDimensionProperties: {
-                      range: { sheetId: newSheetId, dimension: "COLUMNS", startIndex: 3, endIndex: 4 }, // Col D (Description)
-                      properties: { pixelSize: 400 },
-                      fields: "pixelSize"
-                  }
-              },
-              // 6. Data Table Styling (Borders & Alignment)
-              {
-                  repeatCell: {
-                      range: { sheetId: newSheetId, startRowIndex: 8, endRowIndex: 8 + dataRows.length, startColumnIndex: 0, endColumnIndex: 6 },
-                      cell: { userEnteredFormat: { 
-                          borders: {
-                              top: { style: "SOLID" }, bottom: { style: "SOLID" }, left: { style: "SOLID" }, right: { style: "SOLID" }
-                          },
-                          verticalAlignment: "TOP",
-                          wrapStrategy: "WRAP"
-                      }},
-                      fields: "userEnteredFormat(borders,verticalAlignment,wrapStrategy)"
-                  }
-              },
-              // 7. Alternating Row Colors (Banding)
-              {
-                  addBanding: {
-                      bandedRange: {
-                          range: { sheetId: newSheetId, startRowIndex: 8, endRowIndex: 8 + dataRows.length, startColumnIndex: 0, endColumnIndex: 6 },
-                          rowProperties: {
-                              firstBandColor: hexToRgb("#ffffff"),
-                              secondBandColor: hexToRgb("#fef2f2") // Light Red
-                          }
-                      }
-                  }
-              }
-          ];
-
-          await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ requests: batchUpdateRequests })
-          });
-
-          if (window.confirm(`Success! Added new tab "${sheetTitle}" to the Unified Master Report.\n\nOpen Spreadsheet now?`)) {
-              window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}`, '_blank');
-          }
-
-      } catch (e: any) {
-          console.error(e);
-          alert(`Google Sheets Error: ${e.message}`);
-      } finally {
-          setIsPushingToDrive(false);
-      }
-  };
-
-  const handlePushToSheets = () => {
-      if (filteredErrors.length === 0) {
-          alert("No logs to push.");
-          return;
-      }
-      if (!gClientId) {
-          setShowClientInput(true);
-          return;
-      }
-      if (!window.google) {
-          alert("Google API not loaded. Refresh page.");
-          return;
-      }
-
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: gClientId,
-          scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
-          callback: (tokenResponse: any) => {
-              if (tokenResponse && tokenResponse.access_token) {
-                  setGDriveToken(tokenResponse.access_token);
-                  pushToGoogleSheets(tokenResponse.access_token);
-              }
-          },
-      });
-
-      // Attempt to reuse token if valid, else request new
-      tokenClient.requestAccessToken();
+      document.body.removeChild(link);
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in h-[calc(100vh-140px)]">
-        
-        {/* LEFT: FORM SECTION */}
-        <div className="lg:col-span-1 bg-gray-800 p-6 rounded-xl border border-gray-700 overflow-y-auto">
-            <div className="flex items-center gap-2 mb-6 text-red-400">
-                <Bug className="w-6 h-6" />
-                <h2 className="text-xl font-bold text-white">Log New Error</h2>
-            </div>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+           <div className="flex items-center gap-2 mb-1">
+             <Bug className="w-6 h-6 text-red-500" />
+             <h2 className="text-xl font-bold text-white">FG SORA Error Logs</h2>
+           </div>
+           <p className="text-gray-400 text-sm">Track bugs, glitches, and generation failures for the dev team.</p>
+        </div>
+        <div className="flex gap-3">
+           <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold shadow-lg">
+             <Plus className="w-4 h-4"/> Log Error
+           </button>
+           <button onClick={handleExport} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-bold">
+             <Download className="w-4 h-4"/> Export Log
+           </button>
+        </div>
+      </div>
 
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
-                        <input 
-                            type="date" 
-                            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-red-500 outline-none [color-scheme:dark]"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                        />
+      {/* Filters */}
+      <div className="flex items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
+         <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+            <button 
+              onClick={() => setViewPeriod('daily')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewPeriod === 'daily' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Daily View
+            </button>
+            <button 
+              onClick={() => setViewPeriod('all')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewPeriod === 'all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              All History
+            </button>
+         </div>
+
+         {viewPeriod === 'daily' && (
+            <div className="relative">
+               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+               <input 
+                 type="date" 
+                 className="bg-gray-900 border border-gray-700 text-white pl-9 pr-3 py-1.5 rounded-lg text-sm focus:ring-1 focus:ring-red-500 outline-none [color-scheme:dark]"
+                 value={selectedDate}
+                 onChange={(e) => setSelectedDate(e.target.value)}
+               />
+            </div>
+         )}
+      </div>
+
+      {/* Logs List */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+         {filteredErrors.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 flex flex-col items-center">
+               <Bug className="w-12 h-12 mb-3 opacity-20" />
+               <p>No errors logged for this period.</p>
+            </div>
+         ) : (
+            <div className="divide-y divide-gray-700">
+               {filteredErrors.map(err => (
+                 <div key={err.id} className="p-4 hover:bg-gray-750/50 transition-colors flex gap-4">
+                    <div className="flex flex-col items-center justify-center bg-red-900/20 border border-red-500/20 rounded-lg p-3 min-w-[80px] text-center">
+                       <span className="text-xs text-red-300 font-bold uppercase">{err.time}</span>
+                       <span className="text-[10px] text-red-400/70">{err.date}</span>
                     </div>
-                    <div>
+                    <div className="flex-1">
+                       <div className="flex justify-between items-start mb-1">
+                          <h4 className="text-white font-bold">{err.category}</h4>
+                          <button onClick={() => handleDelete(err.id)} className="text-gray-500 hover:text-red-400">
+                             <Trash2 className="w-4 h-4" />
+                          </button>
+                       </div>
+                       <p className="text-gray-300 text-sm mb-2">{err.description}</p>
+                       <div className="bg-gray-900/50 p-2 rounded text-xs text-gray-400 font-mono border border-gray-700/50">
+                          <span className="text-gray-500 select-none">Steps: </span>{err.steps}
+                       </div>
+                    </div>
+                 </div>
+               ))}
+            </div>
+         )}
+      </div>
+
+      {/* Add Log Modal */}
+      {isModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl p-6">
+               <div className="flex justify-between items-center mb-6 pb-2 border-b border-gray-700">
+                  <h3 className="text-xl font-bold text-white">Log New Error</h3>
+                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
+               </div>
+               <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-xs font-bold text-gray-400 uppercase">Category</label>
+                        <select 
+                           className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:ring-1 focus:ring-red-500 outline-none mt-1"
+                           value={formData.category}
+                           onChange={e => setFormData({...formData, category: e.target.value})}
+                        >
+                           <option>Generation Failure</option>
+                           <option>Glitched Visuals</option>
+                           <option>Audio Sync Issue</option>
+                           <option>Platform Crash</option>
+                           <option>Prompt Rejected</option>
+                        </select>
+                     </div>
+                     <div>
                         <label className="text-xs font-bold text-gray-400 uppercase">Time</label>
                         <input 
-                            type="time" 
-                            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-red-500 outline-none [color-scheme:dark]"
-                            value={time}
-                            onChange={(e) => setTime(e.target.value)}
+                           type="time" 
+                           className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:ring-1 focus:ring-red-500 outline-none mt-1 [color-scheme:dark]"
+                           value={formData.time}
+                           onChange={e => setFormData({...formData, time: e.target.value})}
                         />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Error Category</label>
-                    <select 
-                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 mt-1 focus:ring-2 focus:ring-red-500 outline-none"
-                        value={errorType}
-                        onChange={(e) => setErrorType(e.target.value)}
-                    >
-                        <option>Generation Failure</option>
-                        <option>API FAILURE</option>
-                        <option>CONGESTED IN WEBAPI</option>
-                        <option>Visual Glitch / Artifacts</option>
-                        <option>System Crash</option>
-                        <option>Login / Access Issue</option>
-                        <option>Slow Performance</option>
-                        <option>Other</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Description</label>
-                    <textarea 
-                        rows={3}
-                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 mt-1 focus:ring-2 focus:ring-red-500 outline-none resize-none"
-                        placeholder="What happened?"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase">Steps (Optional)</label>
-                    <textarea 
+                     </div>
+                  </div>
+                  <div>
+                     <label className="text-xs font-bold text-gray-400 uppercase">Description</label>
+                     <textarea 
+                        required
                         rows={2}
-                        className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 mt-1 focus:ring-2 focus:ring-red-500 outline-none resize-none"
-                        placeholder="How to reproduce..."
-                        value={steps}
-                        onChange={(e) => setSteps(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Screenshot</label>
-                    {!imageUrl && !uploading ? (
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:bg-gray-700/50 hover:border-red-500 transition-all">
-                            <Upload className="w-6 h-6 text-gray-400 mb-1" />
-                            <span className="text-xs text-gray-400">Click to upload</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                        </label>
-                    ) : uploading ? (
-                        <div className="flex flex-col items-center justify-center w-full h-24 bg-gray-900/50 rounded-lg border border-gray-700">
-                            <Loader2 className="w-6 h-6 text-red-500 animate-spin mb-1" />
-                            <span className="text-xs text-gray-400">Uploading...</span>
-                        </div>
-                    ) : (
-                        <div className="relative w-full h-32 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden group">
-                            <img src={imageUrl!} alt="Error" className="w-full h-full object-contain" />
-                            <button 
-                                onClick={clearImage}
-                                className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full transition-colors"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                <button 
-                    onClick={handleLog}
-                    disabled={!description || uploading || isSubmitting}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin"/> : <Plus className="w-5 h-5"/>}
-                    Add to Daily Log
-                </button>
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-1 focus:ring-red-500 outline-none mt-1 resize-none"
+                        placeholder="What happened?"
+                        value={formData.description}
+                        onChange={e => setFormData({...formData, description: e.target.value})}
+                     />
+                  </div>
+                  <div>
+                     <label className="text-xs font-bold text-gray-400 uppercase">Steps to Reproduce</label>
+                     <textarea 
+                        required
+                        rows={3}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-1 focus:ring-red-500 outline-none mt-1 resize-none font-mono text-sm"
+                        placeholder="1. Clicked Generate..."
+                        value={formData.steps}
+                        onChange={e => setFormData({...formData, steps: e.target.value})}
+                     />
+                  </div>
+                  <div className="flex justify-end pt-2">
+                     <button type="submit" className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold">Save Log</button>
+                  </div>
+               </form>
             </div>
-        </div>
-
-        {/* RIGHT: LIST / CALENDAR VIEW */}
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col relative">
-            {/* Header / Filter */}
-            <div className="p-4 border-b border-gray-800 bg-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4 flex-1">
-                    <div className="bg-gray-700 p-2 rounded-lg shrink-0">
-                        <Calendar className="w-5 h-5 text-gray-300" />
-                    </div>
-                    
-                    <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
-                        <button onClick={() => setViewPeriod('daily')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'daily' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Daily</button>
-                        <button onClick={() => setViewPeriod('monthly')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'monthly' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Monthly</button>
-                        <button onClick={() => setViewPeriod('yearly')} className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${viewPeriod === 'yearly' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>Yearly</button>
-                    </div>
-
-                    <div className="h-8 w-px bg-gray-700 hidden sm:block"></div>
-
-                    <div>
-                        <label className="text-[10px] uppercase text-gray-500 font-bold block mb-1">
-                            {viewPeriod === 'daily' ? 'Select Date' : viewPeriod === 'monthly' ? 'Select Month' : 'Select Year'}
-                        </label>
-                        {viewPeriod === 'daily' && <input type="date" className="bg-transparent text-white font-bold text-sm outline-none [color-scheme:dark]" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />}
-                        {viewPeriod === 'monthly' && <input type="month" className="bg-transparent text-white font-bold text-sm outline-none [color-scheme:dark]" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />}
-                        {viewPeriod === 'yearly' && (
-                            <select className="bg-transparent text-white font-bold text-sm outline-none bg-gray-800" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-                                {Array.from({length: 5}, (_, i) => new Date().getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                    <button onClick={() => setShowClientInput(true)} className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-500" title="API & Sheet Settings"><Settings className="w-4 h-4" /></button>
-                    <button onClick={handlePushToSheets} disabled={filteredErrors.length === 0 || isPushingToDrive} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg disabled:opacity-50 whitespace-nowrap">
-                        {isPushingToDrive ? <Loader2 className="w-4 h-4 animate-spin"/> : <Cloud className="w-4 h-4" />} <span className="hidden sm:inline">Push to Sheets</span>
-                    </button>
-                    <button onClick={handleExport} disabled={filteredErrors.length === 0} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg disabled:opacity-50 whitespace-nowrap">
-                        <FileSpreadsheet className="w-4 h-4" /> Excel
-                    </button>
-                </div>
-            </div>
-
-            {/* Scrollable List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-900/50">
-                {filteredErrors.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-600">
-                        <CheckCircle className="w-16 h-16 mb-4 opacity-20" />
-                        <p>No errors logged for this period.</p>
-                        <p className="text-sm mt-1">FGSORA systems running smoothly.</p>
-                    </div>
-                ) : (
-                    filteredErrors.map((error) => (
-                        <div key={error.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex gap-4 hover:border-red-500/30 transition-all group">
-                            <div className="flex flex-col items-center justify-start pt-1 min-w-[80px] border-r border-gray-700 pr-4">
-                                <Clock className="w-4 h-4 text-gray-500 mb-1" />
-                                <span className="text-lg font-bold text-white">{error.time}</span>
-                                {viewPeriod !== 'daily' && <span className="text-[10px] text-gray-500">{new Date(error.date).toLocaleDateString()}</span>}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start mb-1">
-                                    <h4 className={`font-medium truncate ${error.category.includes('FAILURE') ? 'text-red-400 font-bold' : 'text-white'}`}>{error.category}</h4>
-                                    <button onClick={(e) => handleDelete(error.id, e)} className="p-2 hover:bg-red-900/30 text-gray-400 hover:text-red-400 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
-                                </div>
-                                <p className="text-gray-400 text-sm mt-1">{error.description}</p>
-                                {error.steps && <div className="mt-2 text-xs text-gray-500 bg-gray-900/50 p-2 rounded"><span className="font-bold text-gray-400">Steps:</span> {error.steps}</div>}
-                            </div>
-                            {error.imageUrl && (
-                                <div className="w-24 h-24 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden shrink-0 relative group/img">
-                                    <img src={error.imageUrl} alt="Error" className="w-full h-full object-cover opacity-80 group-hover/img:opacity-100 transition-opacity" />
-                                    <a href={error.imageUrl} target="_blank" rel="noopener noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity"><ExternalLink className="w-6 h-6 text-white" /></a>
-                                </div>
-                            )}
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Google Client ID Modal */}
-            {showClientInput && (
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-md w-full shadow-2xl space-y-6">
-                        <div className="flex items-center gap-2 border-b border-gray-700 pb-4">
-                            <div className="bg-blue-500/20 p-2 rounded-lg"><Settings className="w-5 h-5 text-blue-400" /></div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white">Integration Settings</h3>
-                                <p className="text-xs text-gray-400">Manage Google Sheets & Drive connection</p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Google Client ID</label>
-                            <input 
-                                type="text" 
-                                placeholder="7177...apps.googleusercontent.com"
-                                className="w-full bg-gray-900 border border-gray-600 text-white p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                value={gClientId}
-                                onChange={(e) => setGClientId(e.target.value)}
-                            />
-                            <p className="text-xs text-gray-500">
-                                Default ID provided. Change only if using custom Cloud Project.
-                            </p>
-                        </div>
-
-                        <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
-                                <LinkIcon className="w-3 h-3"/> Connected Spreadsheet
-                            </label>
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm text-gray-300 font-mono truncate max-w-[200px]">
-                                    {linkedSheetId ? linkedSheetId : 'Not connected (Will use default Master)'}
-                                </div>
-                                {linkedSheetId && (
-                                    <button onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${linkedSheetId}`, '_blank')} className="text-blue-400 hover:underline text-xs">
-                                        Open
-                                    </button>
-                                )}
-                            </div>
-                            {linkedSheetId ? (
-                                <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-300">
-                                    <strong className="block mb-1">Unified Mode Active</strong>
-                                    All users pushing reports will write to this Master Sheet.
-                                </div>
-                            ) : (
-                                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-300">
-                                    Using System Default Master Spreadsheet.
-                                </div>
-                            )}
-                            
-                            {linkedSheetId && (
-                                <button onClick={resetSpreadsheetLink} className="w-full mt-2 flex items-center justify-center gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 py-2 rounded-lg text-xs transition-colors border border-red-500/20">
-                                    <RefreshCcw className="w-3 h-3" /> Unlink / Reset to Default
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={() => setShowClientInput(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium">Close</button>
-                            <button onClick={saveSettings} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-sm font-bold shadow-lg">Save Settings</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+         </div>
+      )}
     </div>
   );
 };

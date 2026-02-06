@@ -1,11 +1,12 @@
+
 import { db, auth, storage } from './firebase';
 import { 
   collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, query, orderBy 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { 
   Creator, CreatorFormData, ResourceLink, BrandProduct, ReportedVideo, 
-  FGSoraError, ContentPlan, LogEntry, VaultAccount 
+  FGSoraError, ContentPlan, LogEntry, VaultAccount, PublicAsset, PublicNote
 } from '../types';
 
 const CREATORS_COLLECTION = 'creators';
@@ -17,6 +18,8 @@ const ERRORS_COLLECTION = 'fgsora_errors';
 const PLANS_COLLECTION = 'content_plans';
 const LOGS_COLLECTION = 'activity_logs';
 const VAULT_COLLECTION = 'account_vault';
+const ASSETS_COLLECTION = 'public_assets';
+const PUBLIC_NOTES_COLLECTION = 'public_notes';
 const SETTINGS_COLLECTION = 'settings';
 
 // --- LOGGING HELPER ---
@@ -345,6 +348,62 @@ export const saveVaultAccount = async (data: any, id?: string): Promise<void> =>
 export const deleteVaultAccount = async (id: string, username: string): Promise<void> => {
   await deleteDoc(doc(db, VAULT_COLLECTION, id));
   await addLog('DELETE', `Deleted vault account: ${username}`);
+};
+
+// --- PUBLIC ASSETS (Image Host) ---
+export const subscribeToAssets = (
+  onData: (assets: PublicAsset[]) => void,
+  onError?: (error: any) => void
+) => {
+  const q = query(collection(db, ASSETS_COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const assets = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PublicAsset[];
+    onData(assets);
+  }, onError);
+};
+
+export const saveAsset = async (asset: Omit<PublicAsset, 'id'>): Promise<void> => {
+  await addDoc(collection(db, ASSETS_COLLECTION), asset);
+  await addLog('CREATE', `Uploaded asset: ${asset.name}`);
+};
+
+export const deleteAsset = async (id: string, url: string, name: string): Promise<void> => {
+  // 1. Delete from Storage
+  try {
+    const storageRef = ref(storage, url);
+    await deleteObject(storageRef);
+  } catch (e) {
+    console.warn("Could not delete from storage (might already be gone)", e);
+  }
+  
+  // 2. Delete from Firestore
+  await deleteDoc(doc(db, ASSETS_COLLECTION, id));
+  await addLog('DELETE', `Deleted asset: ${name}`);
+};
+
+// --- PUBLIC NOTEPAD ---
+export const subscribeToPublicNote = (
+  id: string,
+  onData: (note: PublicNote | null) => void
+) => {
+  return onSnapshot(doc(db, PUBLIC_NOTES_COLLECTION, id), (docSnap) => {
+    if (docSnap.exists()) {
+      onData({ id: docSnap.id, ...docSnap.data() } as PublicNote);
+    } else {
+      onData(null);
+    }
+  });
+};
+
+export const savePublicNote = async (id: string, content: string): Promise<void> => {
+  // Use setDoc with merge to create if not exists or update
+  await setDoc(doc(db, PUBLIC_NOTES_COLLECTION, id), {
+    content,
+    lastUpdated: new Date().toISOString()
+  }, { merge: true });
 };
 
 // --- STORAGE UTILS ---

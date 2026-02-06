@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Flame, Brain, Share2, MessageCircle, Heart, Bookmark, Eye, FileSpreadsheet, Sparkles, Target, Zap, Loader2, ArrowRight, CheckCircle } from 'lucide-react';
-import { analyzeViralVideo } from '../services/geminiService';
+import { Flame, Search, Loader2, Download, AlertCircle, PlayCircle } from 'lucide-react';
+import { analyzeViralVideo, scrapeVideoStats } from '../services/geminiService';
 import { ViralReportResult } from '../types';
 
 const ViralReportGenerator: React.FC = () => {
   const [formData, setFormData] = useState({
+    url: '',
     title: '',
-    platform: 'TikTok',
     niche: '',
     product: '',
+    platform: 'TikTok',
     views: 0,
     likes: 0,
     comments: 0,
@@ -16,31 +17,55 @@ const ViralReportGenerator: React.FC = () => {
     saves: 0
   });
 
-  const [analysis, setAnalysis] = useState<ViralReportResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scraping, setScraping] = useState(false);
+  const [analysis, setAnalysis] = useState<ViralReportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleScrape = async () => {
+    if (!formData.url) return;
+    setScraping(true);
+    try {
+      const stats = await scrapeVideoStats(formData.url);
+      if (stats) {
+        setFormData(prev => ({
+          ...prev,
+          views: stats.views,
+          likes: stats.likes,
+          comments: stats.comments,
+          shares: stats.shares
+        }));
+      } else {
+        setError("Could not auto-scrape stats. Please enter manually.");
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Scraping failed.");
+    } finally {
+      setScraping(false);
+    }
+  };
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.views) {
-        alert("Please enter metrics to analyze.");
-        return;
-    }
     setLoading(true);
+    setError(null);
     setAnalysis(null);
+
     try {
-        const result = await analyzeViralVideo(formData);
-        setAnalysis(result);
-    } catch (e: any) {
-        alert("Analysis failed: " + e.message);
+      const result = await analyzeViralVideo(formData);
+      setAnalysis(result);
+    } catch (err: any) {
+      setError(err.message || "Failed to analyze video.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   const handleExport = () => {
     if (!analysis) return;
     const dateStr = new Date().toISOString().split('T')[0];
-    const engagementRate = ((formData.likes + formData.comments + formData.shares + formData.saves) / formData.views * 100).toFixed(2);
+    const engagementRate = formData.views > 0 ? ((formData.likes + formData.comments + formData.shares + formData.saves) / formData.views * 100).toFixed(2) : "0";
 
     const htmlContent = `
       <html>
@@ -118,201 +143,172 @@ const ViralReportGenerator: React.FC = () => {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `Viral_Report_${formData.title.replace(/\s+/g, '_')}_${dateStr}.xls`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 animate-fade-in h-[calc(100vh-100px)]">
-        {/* INPUT PANEL */}
-        <div className="w-full lg:w-1/3 bg-gray-800 border border-gray-700 rounded-xl p-6 overflow-y-auto">
-            <div className="flex items-center gap-2 mb-6">
-                <div className="bg-red-500/20 p-2 rounded-lg">
-                    <Flame className="w-6 h-6 text-red-500" />
-                </div>
-                <div>
-                    <h2 className="text-xl font-bold text-white">Viral Deep Dive</h2>
-                    <p className="text-xs text-gray-400">Generate an exclusive report for a single video.</p>
-                </div>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in max-w-7xl mx-auto">
+      {/* Input Form */}
+      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit">
+        <div className="flex items-center gap-2 mb-6">
+          <Flame className="w-6 h-6 text-red-500" />
+          <h2 className="text-xl font-bold text-white">Viral Video Analyzer</h2>
+        </div>
 
-            <form onSubmit={handleAnalyze} className="space-y-4">
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Video Title / Hook</label>
-                    <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. My crazy morning routine..." />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase">Platform</label>
-                        <select className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:outline-none" value={formData.platform} onChange={e => setFormData({...formData, platform: e.target.value})}>
-                            <option>TikTok</option>
-                            <option>Instagram Reels</option>
-                            <option>YouTube Shorts</option>
-                        </select>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase">Niche</label>
-                        <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:outline-none" value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} placeholder="e.g. Tech" />
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Product (Optional)</label>
-                    <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:outline-none" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} placeholder="e.g. LED Lights" />
-                </div>
-
-                <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700 space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-300 uppercase mb-2">
-                        <Target className="w-4 h-4 text-blue-400" /> Performance Metrics
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase">Views</label>
-                            <input required type="number" className="w-full bg-gray-800 border border-gray-600 text-white p-2 rounded focus:border-red-500 outline-none" value={formData.views} onChange={e => setFormData({...formData, views: Number(e.target.value)})} />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase">Likes</label>
-                            <input required type="number" className="w-full bg-gray-800 border border-gray-600 text-white p-2 rounded focus:border-pink-500 outline-none" value={formData.likes} onChange={e => setFormData({...formData, likes: Number(e.target.value)})} />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase">Comments</label>
-                            <input required type="number" className="w-full bg-gray-800 border border-gray-600 text-white p-2 rounded focus:border-blue-500 outline-none" value={formData.comments} onChange={e => setFormData({...formData, comments: Number(e.target.value)})} />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-gray-500 uppercase">Shares</label>
-                            <input required type="number" className="w-full bg-gray-800 border border-gray-600 text-white p-2 rounded focus:border-green-500 outline-none" value={formData.shares} onChange={e => setFormData({...formData, shares: Number(e.target.value)})} />
-                        </div>
-                        <div className="col-span-2">
-                            <label className="text-[10px] text-gray-500 uppercase">Saves / Favorites</label>
-                            <input required type="number" className="w-full bg-gray-800 border border-gray-600 text-white p-2 rounded focus:border-yellow-500 outline-none" value={formData.saves} onChange={e => setFormData({...formData, saves: Number(e.target.value)})} />
-                        </div>
-                    </div>
-                </div>
-
+        <form onSubmit={handleAnalyze} className="space-y-4">
+           {/* URL Input & Scrape */}
+           <div className="space-y-2">
+             <label className="text-xs font-bold text-gray-400 uppercase">Video URL</label>
+             <div className="flex gap-2">
+                <input 
+                  type="url" 
+                  className="flex-1 bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  placeholder="https://tiktok.com/..."
+                  value={formData.url}
+                  onChange={e => setFormData({...formData, url: e.target.value})}
+                />
                 <button 
-                    type="submit" 
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                  type="button" 
+                  onClick={handleScrape}
+                  disabled={scraping || !formData.url}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
                 >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Brain className="w-5 h-5"/>}
-                    {loading ? 'Analyzing Video...' : 'Generate Exclusive Report'}
+                  {scraping ? <Loader2 className="w-4 h-4 animate-spin"/> : <Search className="w-4 h-4"/>}
+                  Fetch
                 </button>
-            </form>
-        </div>
+             </div>
+           </div>
 
-        {/* REPORT PANEL */}
-        <div className="w-full lg:w-2/3 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col relative">
-            {!analysis ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-600 p-10 text-center">
-                    <div className="bg-gray-800 p-6 rounded-full mb-6 animate-pulse">
-                        <Sparkles className="w-16 h-16 opacity-30 text-red-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-500">Ready to Analyze</h3>
-                    <p className="max-w-sm mt-2">Enter your viral video stats on the left to generate a professional deep-dive report.</p>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto p-8 relative">
-                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 to-orange-500"></div>
-                    
-                    {/* Report Header */}
-                    <div className="flex justify-between items-start mb-8">
-                        <div>
-                            <div className="flex items-center gap-2 text-red-500 font-bold uppercase text-xs tracking-widest mb-1">
-                                <Flame className="w-4 h-4" /> Viral Analysis
-                            </div>
-                            <h1 className="text-3xl font-black text-white leading-tight max-w-xl">{formData.title}</h1>
-                            <p className="text-gray-400 mt-2 text-sm">{new Date().toLocaleDateString()} • {formData.platform}</p>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-500">{analysis.viralityScore}</div>
-                            <div className="text-xs font-bold text-gray-500 uppercase mt-1">Virality Score</div>
-                        </div>
-                    </div>
+           {/* Metadata */}
+           <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-gray-400 uppercase">Video Title / Hook</label>
+                 <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-gray-400 uppercase">Niche</label>
+                 <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-red-500 outline-none" value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} />
+              </div>
+           </div>
 
-                    {/* Metrics Bar */}
-                    <div className="grid grid-cols-4 gap-4 mb-8">
-                        <div className="bg-gray-800 p-4 rounded-xl text-center border border-gray-700">
-                            <Eye className="w-5 h-5 text-blue-400 mx-auto mb-2" />
-                            <div className="text-xl font-bold text-white">{formData.views.toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Views</div>
-                        </div>
-                        <div className="bg-gray-800 p-4 rounded-xl text-center border border-gray-700">
-                            <Heart className="w-5 h-5 text-pink-400 mx-auto mb-2" />
-                            <div className="text-xl font-bold text-white">{formData.likes.toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Likes</div>
-                        </div>
-                        <div className="bg-gray-800 p-4 rounded-xl text-center border border-gray-700">
-                            <Share2 className="w-5 h-5 text-green-400 mx-auto mb-2" />
-                            <div className="text-xl font-bold text-white">{formData.shares.toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Shares</div>
-                        </div>
-                        <div className="bg-gray-800 p-4 rounded-xl text-center border border-gray-700">
-                            <Bookmark className="w-5 h-5 text-yellow-400 mx-auto mb-2" />
-                            <div className="text-xl font-bold text-white">{formData.saves.toLocaleString()}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Saves</div>
-                        </div>
-                    </div>
+           {/* Stats Grid */}
+           <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700/50 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                 <label className="text-[10px] font-bold text-gray-500 uppercase">Views</label>
+                 <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:outline-none" value={formData.views} onChange={e => setFormData({...formData, views: Number(e.target.value)})} />
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[10px] font-bold text-gray-500 uppercase">Likes</label>
+                 <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:outline-none" value={formData.likes} onChange={e => setFormData({...formData, likes: Number(e.target.value)})} />
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[10px] font-bold text-gray-500 uppercase">Comments</label>
+                 <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:outline-none" value={formData.comments} onChange={e => setFormData({...formData, comments: Number(e.target.value)})} />
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[10px] font-bold text-gray-500 uppercase">Shares</label>
+                 <input type="number" className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:outline-none" value={formData.shares} onChange={e => setFormData({...formData, shares: Number(e.target.value)})} />
+              </div>
+           </div>
 
-                    {/* Analysis Content */}
-                    <div className="space-y-6">
-                        <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700">
-                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                                <Zap className="w-5 h-5 text-yellow-400" /> Why It Worked
-                            </h3>
-                            <ul className="space-y-3">
-                                {analysis.whyItWorked.map((point, idx) => (
-                                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
-                                        <div className="bg-yellow-500/20 p-1 rounded mt-0.5">
-                                            <CheckCircle className="w-3 h-3 text-yellow-400" />
-                                        </div>
-                                        {point}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+           {error && (
+             <div className="text-red-400 text-sm flex items-center gap-2 bg-red-900/20 p-3 rounded-lg border border-red-500/20">
+               <AlertCircle className="w-4 h-4"/> {error}
+             </div>
+           )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700">
-                                <h3 className="text-sm font-bold text-blue-300 uppercase mb-3">Hook Analysis</h3>
-                                <p className="text-sm text-gray-400 leading-relaxed">{analysis.hookAnalysis}</p>
-                            </div>
-                            <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700">
-                                <h3 className="text-sm font-bold text-pink-300 uppercase mb-3">Engagement Quality</h3>
-                                <p className="text-sm text-gray-400 leading-relaxed">{analysis.engagementQuality}</p>
-                            </div>
-                        </div>
+           <button 
+             type="submit" 
+             disabled={loading}
+             className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+           >
+             {loading ? <Loader2 className="w-5 h-5 animate-spin"/> : <PlayCircle className="w-5 h-5"/>}
+             {loading ? 'Analyzing Video...' : 'Generate Viral Report'}
+           </button>
+        </form>
+      </div>
 
-                        <div className="bg-green-900/10 p-6 rounded-xl border border-green-500/20">
-                            <h3 className="text-lg font-bold text-green-400 mb-4 flex items-center gap-2">
-                                <Target className="w-5 h-5" /> Recommended Next Steps
-                            </h3>
-                            <ul className="space-y-3">
-                                {analysis.nextSteps.map((step, idx) => (
-                                    <li key={idx} className="flex items-center gap-3 text-sm text-green-200">
-                                        <ArrowRight className="w-4 h-4 text-green-500" />
-                                        {step}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            )}
+      {/* Analysis Output */}
+      <div className="space-y-6">
+         {analysis ? (
+            <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-2xl animate-in slide-in-from-right-4">
+               {/* Header */}
+               <div className="bg-gradient-to-r from-red-600 to-orange-600 p-6 text-center relative overflow-hidden">
+                  <div className="relative z-10">
+                     <h3 className="text-white font-bold text-2xl uppercase tracking-wider mb-1">Viral Breakdown</h3>
+                     <p className="text-white/80 text-sm">{formData.title}</p>
+                  </div>
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                     <Flame className="w-24 h-24 text-white" />
+                  </div>
+               </div>
 
-            {/* Sticky Export Bar */}
-            {analysis && (
-                <div className="p-4 border-t border-gray-800 bg-gray-900/95 backdrop-blur-sm flex justify-between items-center sticky bottom-0">
-                    <span className="text-xs text-gray-500">Report ready for presentation</span>
-                    <button 
-                        onClick={handleExport}
-                        className="bg-green-600 hover:bg-green-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg flex items-center gap-2 transition-all hover:scale-105"
-                    >
-                        <FileSpreadsheet className="w-4 h-4" /> Export Excel Report
-                    </button>
-                </div>
-            )}
-        </div>
+               {/* Score */}
+               <div className="p-6 text-center border-b border-gray-700">
+                  <div className="inline-flex items-center justify-center w-24 h-24 rounded-full border-4 border-red-500 text-red-400 text-4xl font-bold mb-2">
+                     {analysis.viralityScore}
+                  </div>
+                  <p className="text-sm text-gray-400 uppercase font-bold tracking-widest">Virality Score</p>
+               </div>
+
+               {/* Insights */}
+               <div className="p-6 space-y-6">
+                  <div>
+                     <h4 className="text-red-400 text-sm font-bold uppercase mb-3 flex items-center gap-2">
+                        <PlayCircle className="w-4 h-4" /> Why it worked
+                     </h4>
+                     <ul className="space-y-2">
+                        {analysis.whyItWorked.map((reason, idx) => (
+                           <li key={idx} className="text-gray-300 text-sm flex items-start gap-2">
+                              <span className="text-red-500 font-bold">•</span>
+                              {reason}
+                           </li>
+                        ))}
+                     </ul>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                        <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Hook Analysis</h5>
+                        <p className="text-sm text-gray-300">{analysis.hookAnalysis}</p>
+                     </div>
+                     <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                        <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Engagement</h5>
+                        <p className="text-sm text-gray-300">{analysis.engagementQuality}</p>
+                     </div>
+                  </div>
+
+                  <div>
+                     <h4 className="text-green-400 text-sm font-bold uppercase mb-3">Actionable Next Steps</h4>
+                     <div className="bg-green-900/10 border border-green-500/20 rounded-lg p-4">
+                        <ul className="space-y-2">
+                           {analysis.nextSteps.map((step, idx) => (
+                              <li key={idx} className="text-green-200 text-sm flex items-start gap-2">
+                                 <span className="text-green-500 font-bold">→</span>
+                                 {step}
+                              </li>
+                           ))}
+                        </ul>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={handleExport}
+                    className="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+                  >
+                     <Download className="w-4 h-4" /> Export Excel Report
+                  </button>
+               </div>
+            </div>
+         ) : (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 rounded-xl border border-gray-800 border-dashed p-12">
+               <Flame className="w-16 h-16 mb-4 opacity-20" />
+               <p className="text-center">Enter video stats to generate<br/>an AI-powered viral breakdown.</p>
+            </div>
+         )}
+      </div>
     </div>
   );
 };

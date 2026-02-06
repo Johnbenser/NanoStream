@@ -123,6 +123,16 @@ export interface ContentPlan {
   createdAt: string;
 }
 
+export interface PublicAsset {
+  id: string;
+  name: string;
+  url: string;
+  size: number; // bytes
+  type: string; // mime type
+  uploadedBy: string;
+  createdAt: string;
+}
+
 export interface VaultAccount {
   id: string;
   platform?: string; // Made optional as it is removed from UI
@@ -136,6 +146,12 @@ export interface VaultAccount {
   status?: string; // 'GOOD ACC.', 'RESTRICTED', etc.
   customOrder?: number; // Sorting order for reports (1, 2, 3...)
   updatedAt: string;
+}
+
+export interface PublicNote {
+  id: string;
+  content: string;
+  lastUpdated: string;
 }
 
 export interface AnalysisResult {
