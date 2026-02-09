@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  CloudUpload, Copy, Trash2, LayoutGrid, List, FileImage, 
+  UploadCloud, Copy, Trash2, LayoutGrid, List, FileImage, 
   MoreVertical, Check, ExternalLink, HardDrive, Search, X 
 } from 'lucide-react';
 import { PublicAsset } from '../types';
@@ -135,7 +135,7 @@ const ImageHost: React.FC = () => {
           </div>
 
           <label className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-lg shadow-blue-900/20">
-             <CloudUpload className="w-4 h-4" /> Upload
+             <UploadCloud className="w-4 h-4" /> Upload
              <input type="file" multiple className="hidden" onChange={(e) => handleFileUpload(e.target.files)} />
           </label>
         </div>
@@ -153,7 +153,7 @@ const ImageHost: React.FC = () => {
         {dragActive && (
           <div className="absolute inset-0 z-50 bg-blue-600/20 backdrop-blur-sm border-4 border-blue-500 border-dashed m-4 rounded-xl flex items-center justify-center">
              <div className="bg-gray-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce">
-                <CloudUpload className="w-12 h-12 text-blue-400 mb-2" />
+                <UploadCloud className="w-12 h-12 text-blue-400 mb-2" />
                 <h3 className="text-xl font-bold text-white">Drop files to upload</h3>
              </div>
           </div>
