@@ -22,7 +22,7 @@ import ReportedContent from './components/ReportedContent';
 import ViralReportGenerator from './components/ViralReportGenerator'; // New Import
 import AccountVault from './components/AccountVault'; // New Import
 import Login from './components/Login';
-import { ViewState, Creator, ReportedVideo } from '../types';
+import { ViewState, Creator, ReportedVideo } from './types';
 import { subscribeToCreators, subscribeToClients, subscribeToReports } from './services/storageService';
 import { AlertTriangle, ExternalLink, Sparkles, LayoutGrid, Scale, Bug, Image as ImageIcon, FileText } from 'lucide-react';
 

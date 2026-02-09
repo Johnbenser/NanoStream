@@ -1,400 +1,150 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import { VaultAccount } from '../types';
+import { subscribeToVault, saveVaultAccount, deleteVaultAccount } from '../services/storageService';
 import { 
-  Search, Plus, Edit2, Trash2, Lock, Eye, EyeOff, Copy, Check, 
-  AlertTriangle, CheckCircle, Apple, MonitorSmartphone, Grid, LayoutGrid,
-  Battery, Signal, Wifi, ChevronLeft, ChevronRight, ChevronDown, MoreVertical, Mail, GripHorizontal, Laptop,
-  Filter, FileSpreadsheet, X, AtSign, AlertCircle, LogOut, Smartphone, Fingerprint, User, Calendar
+  Shield, Plus, Search, Edit2, Trash2, Smartphone, 
+  Copy, Eye, EyeOff, Check, Monitor, Globe, Key, X, 
+  ChevronDown, ChevronRight, AlertTriangle, Apple, FileSpreadsheet, UserX, HelpCircle, Filter, Mail, User
 } from 'lucide-react';
 import * as OTPAuth from 'otpauth';
-import { VaultAccount } from '../types';
-import { subscribeToVault, saveVaultAccount, deleteVaultAccount, subscribeToDeviceOrder, saveDeviceOrder } from '../services/storageService';
 
+// --- TOTP COMPONENT ---
+const TOTPDisplay: React.FC<{ secret: string }> = ({ secret }) => {
+  const [code, setCode] = useState<string>('------');
+  const [progress, setProgress] = useState<number>(100);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!secret) return;
+
+    const updateToken = () => {
+      try {
+        const cleanSecret = secret.replace(/\s+/g, '').toUpperCase();
+        const totp = new OTPAuth.TOTP({
+          secret: OTPAuth.Secret.fromBase32(cleanSecret),
+          algorithm: 'SHA1',
+          digits: 6,
+          period: 30
+        });
+        const token = totp.generate();
+        setCode(token);
+        const epoch = Math.floor(Date.now() / 1000);
+        const count = epoch % 30;
+        const percent = ((30 - count) / 30) * 100;
+        setProgress(percent);
+      } catch (e) {
+        setCode('INVALID KEY');
+        setProgress(0);
+      }
+    };
+
+    updateToken();
+    const interval = setInterval(updateToken, 1000);
+    return () => clearInterval(interval);
+  }, [secret]);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (code === 'INVALID KEY') return;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mt-3 bg-gray-900/60 rounded-xl p-3 border border-gray-700/50 relative overflow-hidden group/totp cursor-pointer hover:border-blue-500/50 transition-colors" onClick={handleCopy}>
+       <div 
+         className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-1000 ease-linear" 
+         style={{ width: `${progress}%`, opacity: progress < 20 ? 0.5 : 1 }}
+       ></div>
+       <div className="flex justify-between items-center relative z-10">
+          <div>
+             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider flex items-center gap-1">
+               <Key className="w-3 h-3" /> 2FA Code
+             </p>
+             <p className={`text-2xl font-mono font-bold tracking-[0.2em] leading-none mt-1 ${code === 'INVALID KEY' ? 'text-red-400 text-sm' : 'text-white group-hover/totp:text-blue-400 transition-colors'}`}>
+               {code === 'INVALID KEY' ? code : `${code.slice(0,3)} ${code.slice(3)}`}
+             </p>
+          </div>
+          <div className="bg-gray-800 p-2 rounded-lg text-gray-400 group-hover/totp:text-white group-hover/totp:bg-blue-600 transition-all">
+             {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+// --- MAIN COMPONENT ---
 interface AccountVaultProps {
   currentUser?: string;
 }
 
-// --- TOTP GENERATOR COMPONENT ---
-const TOTPDisplay = ({ secret, compact = false }: { secret: string, compact?: boolean }) => {
-    const [token, setToken] = useState<string>('------');
-    const [seconds, setSeconds] = useState<number>(30);
-    const [copied, setCopied] = useState(false);
-    const [error, setError] = useState(false);
-
-    useEffect(() => {
-        if (!secret) return;
-        
-        const update = () => {
-            try {
-                // Handle common formatting issues like spaces
-                const cleanSecret = secret.replace(/\s+/g, '');
-                
-                const totp = new OTPAuth.TOTP({
-                    algorithm: 'SHA1',
-                    digits: 6,
-                    period: 30,
-                    secret: cleanSecret
-                });
-                
-                const tok = totp.generate();
-                const sec = Math.floor(30 - (Date.now() / 1000) % 30);
-                
-                setToken(tok);
-                setSeconds(sec);
-                setError(false);
-            } catch (e) {
-                // Silent fail for invalid secrets (e.g. empty or bad format)
-                setToken('INVALID');
-                setError(true);
-            }
-        };
-
-        update();
-        // Update every second to keep timer accurate, though token only changes every 30s
-        const interval = setInterval(update, 1000);
-        return () => clearInterval(interval);
-    }, [secret]);
-
-    const handleCopy = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault(); // Prevent bubbling to parent clicks
-        if (error || token === '------' || token === 'INVALID') return;
-        
-        navigator.clipboard.writeText(token);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1000);
-    };
-
-    if (error && compact) return <span className="text-[10px] text-red-400 font-mono">ERR</span>;
-    if (error) return null;
-
-    return (
-        <button 
-            onClick={handleCopy}
-            className={`
-                flex items-center gap-2 rounded transition-all group/totp select-none
-                ${compact 
-                    ? 'px-1.5 py-0.5 hover:bg-white/10' 
-                    : 'px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20'}
-            `}
-            title="Click to copy 2FA code"
-        >
-            <span className={`font-mono font-bold tracking-widest ${compact ? 'text-xs text-white' : 'text-sm text-blue-300 group-hover/totp:text-blue-200'}`}>
-                {token}
-            </span>
-            
-            {/* Pie Timer */}
-            <div className="relative w-3 h-3 flex items-center justify-center">
-                 {!copied && (
-                    <svg viewBox="0 0 36 36" className="w-3 h-3 -rotate-90 transform">
-                        <path
-                            className="text-gray-700"
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                        />
-                        <path
-                            className={`${seconds < 5 ? 'text-red-500' : 'text-blue-500'} transition-all duration-1000 linear`}
-                            strokeDasharray={`${(seconds / 30) * 100}, 100`}
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                        />
-                    </svg>
-                 )}
-                 {copied && <Check className="w-3 h-3 text-green-400 animate-in zoom-in" />}
-            </div>
-        </button>
-    );
-};
-
 const AccountVault: React.FC<AccountVaultProps> = ({ currentUser }) => {
   const [accounts, setAccounts] = useState<VaultAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'list' | 'devices'>('list');
-  
-  // Advanced Filters
-  const [emailStartChar, setEmailStartChar] = useState('');
-  const [emailEndChar, setEmailEndChar] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterType, setFilterType] = useState<string>('all'); // 'all', 'good', 'restricted', 'unassigned', 'verify', 'android', 'iphone', 'nosignup'
-  const [filterDate, setFilterDate] = useState<string>('');
-
-  // UI State
+  const [searchMode, setSearchMode] = useState<'contains' | 'start' | 'end'>('contains');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<VaultAccount | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   
-  // Collapsible Sections State
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  // Section Visibility State
+  const [sections, setSections] = useState({
+    restricted: true,
+    notSigned: true,
+    ios: true,
+    android: true,
+    unassigned: true,
+    other: true
+  });
 
-  // Device Sorting State (Synced with Firestore)
-  const [savedOrder, setSavedOrder] = useState<string[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
-  const [formData, setFormData] = useState<Omit<VaultAccount, 'id' | 'updatedAt'>>({
-    username: '',
-    handle: '',
-    password: '',
-    emailPassword: '',
-    secretKey: '',
-    notes: '',
-    device: '',
-    status: 'GOOD ACC.',
-    customOrder: 0
+  // Form State
+  const [formData, setFormData] = useState<Partial<VaultAccount>>({
+    platform: '', username: '', password: '', emailPassword: '', handle: '', secretKey: '', notes: '', device: '', status: 'GOOD ACC.'
   });
 
   useEffect(() => {
-    const unsubscribeVault = subscribeToVault(setAccounts);
-    const unsubscribeOrder = subscribeToDeviceOrder(setSavedOrder);
-    return () => {
-      unsubscribeVault();
-      unsubscribeOrder();
-    };
+    const unsubscribe = subscribeToVault(
+      (data) => setAccounts(data),
+      (error) => console.error("Vault sync error", error)
+    );
+    return () => unsubscribe();
   }, []);
 
-  // Derive unique devices list for autocomplete
-  const existingDevices = useMemo(() => {
-    const devices = new Set<string>();
-    accounts.forEach(acc => {
-      if (acc.device) devices.add(acc.device);
-    });
-    return Array.from(devices).sort();
-  }, [accounts]);
+  // --- HELPERS ---
+  const togglePassword = (id: string) => setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
 
-  // --- DEVICE SEGREGATION LOGIC (For List View & Sorting) ---
-  const getDeviceType = (deviceName: string = '') => {
-    const n = deviceName.toLowerCase();
-    if (n.includes('iphone') || n.includes('ios') || n.includes('apple') || n.includes('ipad')) return 'iphone';
-    if (n.includes('android') || n.includes('samsung') || n.includes('pixel') || n.includes('redmi') || n.includes('xiaomi') || n.includes('oppo') || n.includes('vivo') || n.includes('realme')) return 'android';
-    return 'other';
-  };
-
-  const filteredAccounts = accounts.filter(acc => {
-    // 1. General Search
-    const matchesGeneral = 
-      acc.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (acc.handle && acc.handle.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (acc.notes && acc.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (acc.device && acc.device.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (acc.status && acc.status.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    if (!matchesGeneral) return false;
-
-    // 2. Email Prefix/Suffix Filter
-    if (emailStartChar) {
-        if (!acc.username.toLowerCase().startsWith(emailStartChar.toLowerCase())) return false;
+  const getDeviceStyle = (device: string = '') => {
+    const d = device.toLowerCase();
+    if (d.includes('iphone') || d.includes('apple') || d.includes('ipad')) {
+      return { gradient: 'from-gray-800 to-black', icon: <Apple className="w-12 h-12 text-gray-500/50" />, label: 'Apple iOS', accent: 'border-gray-600' };
     }
-    
-    if (emailEndChar) {
-        const usernamePart = acc.username.split('@')[0].toLowerCase();
-        if (!usernamePart.endsWith(emailEndChar.toLowerCase())) return false;
+    if (d.includes('android') || d.includes('samsung') || d.includes('pixel') || d.includes('xiaomi') || d.includes('redmi') || d.includes('oppo') || d.includes('vivo')) {
+      return { gradient: 'from-green-900 to-emerald-950', icon: <Smartphone className="w-12 h-12 text-green-500/50" />, label: 'Android', accent: 'border-green-600' };
     }
-
-    // 3. Quick Type/Status Filter
-    if (filterType !== 'all') {
-        const type = getDeviceType(acc.device || acc.notes);
-        if (filterType === 'good' && acc.status !== 'GOOD ACC.') return false;
-        if (filterType === 'restricted' && !['RESTRICTED', 'BANNED'].includes(acc.status || '')) return false;
-        if (filterType === 'verify' && acc.status !== 'NEEDS VERIFY') return false;
-        if (filterType === 'nosignup' && !acc.status?.toLowerCase().includes('not signed up')) return false;
-        if (filterType === 'unassigned' && (acc.device && acc.device.trim() !== '')) return false;
-        if (filterType === 'iphone' && type !== 'iphone') return false;
-        if (filterType === 'android' && type !== 'android') return false;
+    if (d.includes('pc') || d.includes('windows') || d.includes('mac') || d.includes('laptop') || d.includes('desktop')) {
+      return { gradient: 'from-blue-900 to-slate-900', icon: <Monitor className="w-12 h-12 text-blue-500/50" />, label: 'Desktop', accent: 'border-blue-600' };
     }
-
-    // 4. Date Filter (Updated At)
-    if (filterDate) {
-        const accDate = acc.updatedAt ? acc.updatedAt.split('T')[0] : '';
-        if (accDate !== filterDate) return false;
-    }
-
-    return true;
-  });
-
-  const categorizedData = useMemo(() => {
-    const groups = {
-      logout: [] as VaultAccount[], // Priority 1: Has "logout" in notes
-      restricted: [] as VaultAccount[], // Priority 2: Bad Status
-      iphone: [] as VaultAccount[],
-      android: [] as VaultAccount[],
-      other: [] as VaultAccount[]
-    };
-
-    filteredAccounts.forEach(acc => {
-      const notesLower = (acc.notes || '').toLowerCase();
-      
-      // Check for logout keyword first
-      if (notesLower.includes('logout') || notesLower.includes('log out')) {
-        groups.logout.push(acc);
-      } else if (acc.status !== 'GOOD ACC.') {
-        groups.restricted.push(acc);
-      } else {
-        const type = getDeviceType(acc.device || acc.notes); 
-        groups[type].push(acc);
-      }
-    });
-    
-    Object.values(groups).forEach(group => {
-        group.sort((a, b) => (a.customOrder || 9999) - (b.customOrder || 9999));
-    });
-
-    return groups;
-  }, [filteredAccounts]);
-
-  // --- RAW GROUPS (FULL LIST) ---
-  const allDeviceGroups = useMemo(() => {
-    const groupMap = new Map<string, { displayName: string; accounts: VaultAccount[] }>();
-    
-    accounts.forEach(acc => {
-        const rawDevice = acc.device ? acc.device.trim() : '';
-        let normalizedKey = '';
-        let displayName = '';
-
-        if (!rawDevice) {
-            normalizedKey = 'unassigned';
-            displayName = 'Unassigned Accounts';
-        } else {
-            normalizedKey = rawDevice.toLowerCase().replace(/\s+/g, ' ');
-            displayName = rawDevice; 
-        }
-        
-        if (!groupMap.has(normalizedKey)) {
-            groupMap.set(normalizedKey, { displayName, accounts: [] });
-        }
-        
-        groupMap.get(normalizedKey)!.accounts.push(acc);
-    });
-    return groupMap;
-  }, [accounts]);
-
-  // --- VISIBILITY CHECK ---
-  const visibleDeviceKeys = useMemo(() => {
-      const keys = new Set<string>();
-      filteredAccounts.forEach(acc => {
-        const rawDevice = acc.device ? acc.device.trim() : '';
-        let key = '';
-        if (!rawDevice) key = 'unassigned';
-        else key = rawDevice.toLowerCase().replace(/\s+/g, ' ');
-        keys.add(key);
-      });
-      return keys;
-  }, [filteredAccounts]);
-
-  // --- MASTER ORDER ---
-  const masterDeviceOrder = useMemo(() => {
-      const currentKeys = Array.from(allDeviceGroups.keys());
-      const existingOrder = savedOrder.filter(key => currentKeys.includes(key));
-      const newKeys = currentKeys.filter(key => !savedOrder.includes(key));
-      
-      // Sort new keys naturally (iPhone 1, iPhone 2, iPhone 10)
-      newKeys.sort((a, b) => {
-          const nameA = allDeviceGroups.get(a)?.displayName || a;
-          const nameB = allDeviceGroups.get(b)?.displayName || b;
-          if (nameA === 'Unassigned Accounts') return 1;
-          if (nameB === 'Unassigned Accounts') return -1;
-          const typeA = getDeviceType(nameA);
-          const typeB = getDeviceType(nameB);
-          const priority: Record<string, number> = { 'iphone': 1, 'android': 2, 'other': 3 };
-          if (priority[typeA] !== priority[typeB]) return priority[typeA] - priority[typeB];
-          
-          return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-      });
-
-      return [...existingOrder, ...newKeys];
-  }, [allDeviceGroups, savedOrder]);
-
-  // --- DRAG HANDLERS ---
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-      setDraggedIndex(index);
-      e.dataTransfer.effectAllowed = "move";
+    return { gradient: 'from-purple-900 to-gray-900', icon: <Globe className="w-12 h-12 text-purple-500/50" />, label: 'Web / Other', accent: 'border-purple-600' };
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-      e.preventDefault(); 
-      e.dataTransfer.dropEffect = "move";
+  const getStatusBadge = (status: string = '') => {
+    const s = status.toUpperCase();
+    if (s.includes('RESTRICTED') || s.includes('BANNED')) return 'bg-red-500/20 text-red-400 border-red-500/30';
+    if (s.includes('VERIFY')) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+    if (s.includes('NOT SIGNED')) return 'bg-gray-700 text-gray-400 border-gray-600';
+    return 'bg-green-500/20 text-green-400 border-green-500/30';
   };
 
-  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
-      e.preventDefault();
-      if (draggedIndex === null || draggedIndex === dropIndex) return;
-
-      const newOrder = [...masterDeviceOrder];
-      const [movedItem] = newOrder.splice(draggedIndex, 1);
-      newOrder.splice(dropIndex, 0, movedItem);
-
-      setSavedOrder(newOrder); 
-      setDraggedIndex(null);
-      await saveDeviceOrder(newOrder);
-  };
-
-  const toggleSection = (section: string) => {
-    setCollapsedSections(prev => {
-        const next = new Set(prev);
-        if (next.has(section)) next.delete(section);
-        else next.add(section);
-        return next;
-    });
-  };
-
-  // Stats Logic
-  const stats = useMemo(() => {
-      const s = {
-          totalGood: 0,
-          iphone: 0,
-          android: 0,
-          restricted: 0,
-          logout: 0,
-          other: 0
-      };
-      
-      accounts.forEach(acc => {
-          const notesLower = (acc.notes || '').toLowerCase();
-          const isLogout = notesLower.includes('logout') || notesLower.includes('log out');
-          
-          if (isLogout) {
-              s.logout++;
-          } else if (acc.status === 'GOOD ACC.') {
-              s.totalGood++;
-              const type = getDeviceType(acc.device || acc.notes);
-              if (type === 'iphone') s.iphone++;
-              else if (type === 'android') s.android++;
-              else s.other++;
-          } else {
-              s.restricted++;
-          }
-      });
-      return s;
-  }, [accounts]);
-
-  // --- ACTIONS ---
-
+  // --- CRUD OPERATIONS ---
   const handleOpenModal = (account?: VaultAccount) => {
     if (account) {
-      setEditingId(account.id);
-      const { id, updatedAt, ...rest } = account;
-      setFormData({
-        ...rest,
-        handle: rest.handle || '',
-        device: rest.device || '',
-        status: rest.status || 'GOOD ACC.'
-      });
+      setEditingAccount(account);
+      setFormData({ ...account });
     } else {
-      setEditingId(null);
-      setFormData({
-        username: '',
-        handle: '',
-        password: '',
-        emailPassword: '',
-        secretKey: '',
-        notes: '',
-        device: '',
-        status: 'GOOD ACC.',
-        customOrder: accounts.length + 1
-      });
+      setEditingAccount(null);
+      setFormData({ platform: '', username: '', password: '', emailPassword: '', handle: '', secretKey: '', notes: '', device: '', status: 'GOOD ACC.' });
     }
     setIsModalOpen(true);
   };
@@ -402,581 +152,572 @@ const AccountVault: React.FC<AccountVaultProps> = ({ currentUser }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await saveVaultAccount(formData, editingId || undefined);
+      await saveVaultAccount(formData, editingAccount?.id);
       setIsModalOpen(false);
-    } catch (err) {
-      alert("Failed to save account");
-    }
+    } catch (e) { alert("Failed to save account."); }
   };
 
   const handleDelete = async (id: string, username: string) => {
-    if (window.confirm(`Delete credentials for ${username}?`)) {
-      await deleteVaultAccount(id, username);
+    if (window.confirm(`Delete account ${username}?`)) await deleteVaultAccount(id, username);
+  };
+
+  // --- SEGREGATION & FILTERING ---
+  const filterAccount = (acc: VaultAccount) => {
+    if (!searchTerm) return true;
+    
+    // Username search with mode (First letter, Last letter, etc.)
+    // Strip domain (@...) for the search check as requested
+    const usernameOnly = acc.username.split('@')[0].toLowerCase();
+    const term = searchTerm.toLowerCase();
+    
+    let matchUser = false;
+    if (searchMode === 'start') {
+        matchUser = usernameOnly.startsWith(term);
+    } else if (searchMode === 'end') {
+        matchUser = usernameOnly.endsWith(term);
+    } else {
+        matchUser = usernameOnly.includes(term);
     }
+
+    if (matchUser) return true;
+
+    // Fallback: search other fields (device, handle) using 'contains' logic regardless of mode if primary user search fails
+    if (searchMode === 'contains') {
+        return (acc.device && acc.device.toLowerCase().includes(term)) || 
+               (acc.handle && acc.handle.toLowerCase().includes(term)) ||
+               (acc.status && acc.status.toLowerCase().includes(term));
+    }
+    
+    return false;
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const filteredAccounts = accounts.filter(filterAccount);
+
+  // 1. Status Groups
+  const notSignedGroup = filteredAccounts.filter(a => a.status?.toUpperCase().includes('NOT SIGNED'));
+  const restrictedGroup = filteredAccounts.filter(a => !a.status?.toUpperCase().includes('NOT SIGNED') && (a.status?.toUpperCase().includes('RESTRICTED') || a.status?.toUpperCase().includes('BANNED') || a.status?.toUpperCase().includes('VERIFY')));
+  
+  // 2. Good Accounts (Ready for assignment/use)
+  const goodAccounts = filteredAccounts.filter(a => !notSignedGroup.includes(a) && !restrictedGroup.includes(a));
+  
+  // 3. Device Segmentation (from Good Accounts)
+  const iosGroup = goodAccounts.filter(a => /iphone|ios|apple|ipad/i.test(a.device || ''));
+  const androidGroup = goodAccounts.filter(a => /android|samsung|pixel|galaxy|xiaomi|redmi|oppo|vivo|huawei|honor|oneplus/i.test(a.device || ''));
+  
+  // 4. Unassigned (Strictly no device string)
+  const unassignedGroup = goodAccounts.filter(a => !a.device || a.device.trim() === '');
+  
+  // 5. Other Devices (Has device but not iOS/Android - e.g., PC, Mac, Emulator)
+  const otherDeviceGroup = goodAccounts.filter(a => 
+    a.device && a.device.trim() !== '' && 
+    !iosGroup.includes(a) && 
+    !androidGroup.includes(a)
+  );
+
+  const stats = {
+    restricted: restrictedGroup.length,
+    notSigned: notSignedGroup.length,
+    ios: iosGroup.length,
+    android: androidGroup.length,
+    unassigned: unassignedGroup.length,
+    other: otherDeviceGroup.length
   };
 
-  const toggleVisibility = (id: string, field: string) => {
-    const key = `${id}-${field}`;
-    setVisibleFields(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  // --- EXPORT FUNCTION ---
+  const handleExportVault = () => {
+    const dateStr = new Date().toLocaleDateString();
+
+    // 1. Calculate Summary Metrics for Report Header
+    const summary = {
+        total: accounts.length,
+        restricted: accounts.filter(a => /RESTRICTED|BANNED|ISSUE/.test(a.status?.toUpperCase() || '')).length,
+        verify: accounts.filter(a => /VERIFY|LOCKED/.test(a.status?.toUpperCase() || '')).length,
+        notSigned: accounts.filter(a => /NOT SIGNED/.test(a.status?.toUpperCase() || '')).length,
+        good: accounts.filter(a => /GOOD/.test(a.status?.toUpperCase() || '')).length,
+        unassigned: accounts.filter(a => !a.device || a.device.trim() === '').length
+    };
+
+    // 2. Sort Helper (Sort by Device A-Z)
+    const sortByDevice = (a: VaultAccount, b: VaultAccount) => (a.device || '').localeCompare(b.device || '');
+
+    // 3. Prepare Data Groups (Sorted)
+    const exportRestricted = [...restrictedGroup].sort(sortByDevice);
+    const exportNotSigned = [...notSignedGroup].sort(sortByDevice);
+    const exportIos = [...iosGroup].sort(sortByDevice);
+    const exportAndroid = [...androidGroup].sort(sortByDevice);
+    const exportUnassigned = [...unassignedGroup].sort(sortByDevice);
+    const exportOther = [...otherDeviceGroup].sort(sortByDevice);
+    
+    const generateTable = (title: string, data: VaultAccount[], color: string) => {
+        if (data.length === 0) return '';
+        const rows = data.map(a => `
+            <tr>
+                <td style="font-weight:bold;">${a.handle || '-'}</td>
+                <td>${a.username}</td>
+                <td style="font-family:monospace;">${a.password || ''}</td>
+                <td style="font-family:monospace;">${a.secretKey || ''}</td>
+                <td style="font-weight:bold; color:#334155;">${a.device || 'N/A'}</td>
+                <td><span style="color:${color}; font-weight:bold;">${a.status}</span></td>
+                <td style="color:#64748b; font-style:italic;">${a.notes || ''}</td>
+            </tr>
+        `).join('');
+
+        return `
+            <h2 style="color:${color}; border-bottom: 2px solid ${color}; padding-bottom: 10px; margin-top: 30px; font-size: 18px; text-transform: uppercase;">${title} (${data.length})</h2>
+            <table>
+                <thead>
+                    <tr style="background:${color}; color:white;">
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>2FA Secret Key</th>
+                        <th>Device</th>
+                        <th>Status</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+    };
+
+    const htmlContent = `
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #fff; }
+          h1 { text-align: center; color: #1e293b; margin-bottom: 5px; }
+          p.meta { text-align: center; color: #64748b; font-size: 12px; margin-bottom: 30px; }
+          
+          .summary-box { display: flex; gap: 20px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap; }
+          .summary-card { border: 1px solid #e2e8f0; padding: 15px 25px; border-radius: 8px; text-align: center; min-width: 120px; background: #f8fafc; }
+          .summary-val { display: block; font-size: 24px; font-weight: bold; color: #0f172a; }
+          .summary-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 5px; }
+          
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+          th { padding: 10px; text-align: left; }
+          td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+        </style>
+      </head>
+      <body>
+        <h1>Global Media Live - Account Vault Report</h1>
+        <p class="meta">Generated: ${dateStr}</p>
+
+        <div class="summary-box">
+            <div class="summary-card" style="border-bottom: 4px solid #ef4444;">
+                <span class="summary-val" style="color:#ef4444">${summary.restricted}</span>
+                <span class="summary-label">Restricted / Issues</span>
+            </div>
+            <div class="summary-card" style="border-bottom: 4px solid #f97316;">
+                <span class="summary-val" style="color:#f97316">${summary.verify}</span>
+                <span class="summary-label">Needs Verify</span>
+            </div>
+            <div class="summary-card" style="border-bottom: 4px solid #64748b;">
+                <span class="summary-val" style="color:#64748b">${summary.notSigned}</span>
+                <span class="summary-label">Not Signed Up</span>
+            </div>
+            <div class="summary-card" style="border-bottom: 4px solid #10b981;">
+                <span class="summary-val" style="color:#10b981">${summary.good}</span>
+                <span class="summary-label">Good Accounts</span>
+            </div>
+            <div class="summary-card" style="border-bottom: 4px solid #8b5cf6;">
+                <span class="summary-val" style="color:#8b5cf6">${summary.unassigned}</span>
+                <span class="summary-label">Unassigned</span>
+            </div>
+        </div>
+        
+        ${generateTable('Restricted & Issues', exportRestricted, '#ef4444')}
+        ${generateTable('Not Signed Up', exportNotSigned, '#64748b')}
+        ${generateTable('iPhone Devices', exportIos, '#3b82f6')}
+        ${generateTable('Android Devices', exportAndroid, '#10b981')}
+        ${generateTable('Unassigned Accounts', exportUnassigned, '#8b5cf6')}
+        ${generateTable('Other Devices (PC/Web)', exportOther, '#6b7280')}
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `GML_Vault_Full_Export_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const handleExportExcel = () => {
-    // Excel export implementation as defined previously...
-    alert("Export feature triggered.");
-  };
+  const renderCard = (account: VaultAccount) => {
+    const style = getDeviceStyle(account.device);
+    const isPasswordVisible = visiblePasswords[account.id];
 
-  const RenderPasswordField = ({ text, id, field }: { text: string | undefined, id: string, field: string }) => {
-    if (!text) return <span className="text-gray-600 italic text-[10px]">Empty</span>;
-    const isVisible = visibleFields.has(`${id}-${field}`);
     return (
-      <div className="flex items-center justify-between bg-gray-900/50 px-2 py-1.5 rounded border border-gray-700/50 group/field w-full">
-        <div className="flex-1 truncate font-mono text-[10px] text-gray-300 mr-2">
-          {isVisible ? text : '••••••••'}
-        </div>
-        <div className="flex gap-1 shrink-0">
-            <button onClick={() => toggleVisibility(id, field)} className="text-gray-500 hover:text-white transition-colors">
-            {isVisible ? <EyeOff className="w-3 h-3"/> : <Eye className="w-3 h-3"/>}
-            </button>
-            <button onClick={() => copyToClipboard(text, `${id}-${field}`)} className="text-gray-500 hover:text-blue-400 transition-colors">
-            {copiedId === `${id}-${field}` ? <Check className="w-3 h-3 text-green-500"/> : <Copy className="w-3 h-3"/>}
-            </button>
-        </div>
+      <div key={account.id} className="group relative bg-gray-800 rounded-3xl border border-gray-700 shadow-xl overflow-hidden hover:shadow-2xl hover:border-gray-500 transition-all duration-300 hover:-translate-y-1">
+         {/* 3D Device Header */}
+         <div className={`h-24 bg-gradient-to-br ${style.gradient} relative overflow-hidden p-4 flex flex-col justify-between`}>
+            <div className="absolute right-[-15px] top-[-10px] opacity-20 transform rotate-12 group-hover:rotate-0 transition-transform duration-700">{style.icon}</div>
+            <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative z-10 flex justify-between items-start">
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase border bg-black/40 backdrop-blur-md ${style.accent} text-white`}>
+                   {style.label}
+                </span>
+                <div className="flex gap-1">
+                   <button onClick={() => handleOpenModal(account)} className="p-1.5 bg-black/20 hover:bg-white/20 rounded-lg text-white/70 hover:text-white transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                   <button onClick={() => handleDelete(account.id, account.username)} className="p-1.5 bg-black/20 hover:bg-red-500/80 rounded-lg text-white/70 hover:text-white transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+            </div>
+            <div className="relative z-10">
+               <h3 className="text-white font-bold text-base truncate drop-shadow-md">{account.device || 'Unassigned'}</h3>
+            </div>
+         </div>
+
+         {/* Body */}
+         <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+               <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold mb-0.5">Account</p>
+                  <div className="font-bold text-white text-sm truncate" title={account.username}>{account.username}</div>
+                  {account.handle && <div className="text-xs text-gray-400 truncate">@{account.handle}</div>}
+               </div>
+               <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase border ${getStatusBadge(account.status)}`}>{account.status}</span>
+            </div>
+
+            <div className="bg-gray-900 rounded-xl p-2.5 border border-gray-700 flex items-center justify-between">
+                <div className="flex-1 min-w-0 mr-2">
+                   <p className="text-[9px] text-gray-500 uppercase font-bold mb-0.5">Password</p>
+                   <p className="font-mono text-xs text-gray-300 truncate">{isPasswordVisible ? account.password : '••••••••••••'}</p>
+                </div>
+                <div className="flex gap-1">
+                   <button onClick={() => copyToClipboard(account.password || '')} className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded"><Copy className="w-3.5 h-3.5" /></button>
+                   <button onClick={() => togglePassword(account.id)} className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded">{isPasswordVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
+                </div>
+            </div>
+
+            {account.secretKey ? <TOTPDisplay secret={account.secretKey} /> : <div className="mt-2 text-center text-xs text-gray-600 border border-dashed border-gray-700 p-2 rounded-lg">No 2FA Key</div>}
+         </div>
+         {account.notes && <div className="px-4 pb-4 pt-0"><p className="text-[10px] text-gray-500 italic truncate border-t border-gray-700/50 pt-2">"{account.notes}"</p></div>}
       </div>
     );
   };
 
-  const AccountCard: React.FC<{ account: VaultAccount; type: 'iphone' | 'android' | 'restricted' | 'other' | 'logout' }> = ({ account, type }) => {
-      const displayHandle = account.handle || account.username || 'No Handle';
-      let borderClass = 'border-gray-700 hover:border-gray-500';
-      let icon = <Smartphone className="w-5 h-5 text-gray-400" />;
-      let bgClass = 'bg-gray-800';
-
-      if (type === 'restricted') {
-          borderClass = 'border-red-500/50 hover:border-red-500';
-          icon = <AlertTriangle className="w-5 h-5 text-red-500" />;
-          bgClass = 'bg-gradient-to-br from-gray-800 to-red-900/10';
-      } else if (type === 'logout') {
-          borderClass = 'border-orange-500/50 hover:border-orange-500';
-          icon = <LogOut className="w-5 h-5 text-orange-500" />;
-          bgClass = 'bg-gradient-to-br from-gray-800 to-orange-900/10';
-      } else if (type === 'iphone') {
-          borderClass = 'border-blue-500/30 hover:border-blue-400';
-          icon = <Apple className="w-5 h-5 text-blue-400" />;
-          bgClass = 'bg-gradient-to-br from-gray-800 to-blue-900/10';
-      } else if (type === 'android') {
-          borderClass = 'border-green-500/30 hover:border-green-400';
-          icon = <MonitorSmartphone className="w-5 h-5 text-green-400" />;
-          bgClass = 'bg-gradient-to-br from-gray-800 to-green-900/10';
-      }
-
-      return (
-        <div className={`${bgClass} rounded-xl border ${borderClass} p-4 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 relative group`}>
-            <div className="flex justify-between items-start mb-4 relative z-10">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-900 rounded-lg shadow-inner border border-gray-700">{icon}</div>
-                    <div>
-                        <h3 className="font-bold text-white text-sm truncate max-w-[120px]" title={displayHandle}>{displayHandle}</h3>
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 truncate max-w-[120px]" title={account.username}>
-                            <Mail className="w-3 h-3" /> {account.username}
-                        </div>
-                    </div>
-                </div>
-                <div className={`text-[10px] font-bold px-2 py-1 rounded border max-w-[100px] truncate ${
-                    account.status === 'GOOD ACC.' ? 'bg-green-900/20 text-green-400 border-green-500/30' : 'bg-red-900/20 text-red-400 border-red-500/30'
-                }`}>
-                    {account.status}
-                </div>
-            </div>
-            <div className="mb-4 relative z-10">
-                <div className="flex justify-between items-end mb-1">
-                    <p className="text-[10px] text-gray-500 uppercase font-bold">Assigned Device</p>
-                    <p className="text-[10px] text-blue-400 font-medium truncate max-w-[100px]">{account.device || 'Unassigned'}</p>
-                </div>
-                <div className="text-xs text-gray-300 bg-gray-900/50 p-2 rounded border border-gray-700/50 h-10 overflow-y-auto custom-scrollbar">
-                    {account.notes || <span className="italic opacity-50">No notes.</span>}
-                </div>
-            </div>
-            <div className="space-y-2 mb-4 relative z-10">
-                <div className="grid grid-cols-2 gap-2">
-                    <div><label className="text-[9px] text-gray-500 uppercase font-bold block mb-0.5">Password</label><RenderPasswordField text={account.password} id={account.id} field="password" /></div>
-                    <div><label className="text-[9px] text-gray-500 uppercase font-bold block mb-0.5">Email Pwd</label><RenderPasswordField text={account.emailPassword} id={account.id} field="emailPwd" /></div>
-                </div>
-                <div>
-                    <div className="flex justify-between items-center mb-0.5">
-                        <label className="text-[9px] text-gray-500 uppercase font-bold">2FA Secret</label>
-                        {account.secretKey && <TOTPDisplay secret={account.secretKey} />}
-                    </div>
-                    <RenderPasswordField text={account.secretKey} id={account.id} field="2fa" />
-                </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-gray-700 relative z-10">
-                <button onClick={() => handleOpenModal(account)} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                <button onClick={() => handleDelete(account.id, account.username)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
-        </div>
-      );
-  };
-
-  const PhoneDevice = ({ name, accounts }: { name: string, accounts: VaultAccount[] }) => {
-      const [isLocked, setIsLocked] = useState(true);
-      const [currentTime, setCurrentTime] = useState(new Date());
-      const type = getDeviceType(name);
-      
-      useEffect(() => {
-          const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-          return () => clearInterval(timer);
-      }, []);
-
-      const isIphone = type === 'iphone';
-      const isUnassigned = name === 'Unassigned Accounts';
-      
-      const chassisClass = isIphone 
-        ? "rounded-[3.5rem] border-[14px] border-gray-900 bg-black shadow-[0_0_0_2px_#4b5563,0_30px_60px_-15px_rgba(0,0,0,0.8),inset_0_0_0_2px_rgba(255,255,255,0.1)] ring-1 ring-white/10" 
-        : "rounded-[2rem] border-[8px] border-gray-800 bg-gray-900 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)] ring-1 ring-white/5";
-      const unassignedClass = "rounded-[2rem] border-[4px] border-dashed border-gray-600 bg-gray-900/50 shadow-none opacity-80 scale-95";
-      const screenClass = isIphone ? "rounded-[2.6rem] bg-black" : "rounded-[1.5rem] bg-black";
-      const wallpaperClass = isIphone
-        ? "bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-900 via-slate-900 to-black"
-        : (isUnassigned ? "bg-gradient-to-br from-gray-800 to-gray-900" : "bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-emerald-900 via-gray-900 to-black");
-
-      return (
-        <div className={`relative w-full max-w-[340px] mx-auto h-[700px] ${isUnassigned ? unassignedClass : chassisClass} transform transition-all duration-200 flex flex-col group`}>
-            {isIphone && !isUnassigned && (
-                <>
-                    <div className="absolute top-20 -left-[17px] w-[3px] h-6 bg-gray-600 rounded-l-md shadow-lg"></div>
-                    <div className="absolute top-32 -left-[17px] w-[3px] h-10 bg-gray-600 rounded-l-md shadow-lg"></div>
-                    <div className="absolute top-44 -left-[17px] w-[3px] h-10 bg-gray-600 rounded-l-md shadow-lg"></div>
-                    <div className="absolute top-36 -right-[17px] w-[3px] h-14 bg-gray-600 rounded-r-md shadow-lg"></div>
-                </>
-            )}
-            {!isIphone && !isUnassigned && (
-                <>
-                    <div className="absolute top-32 -right-[11px] w-[3px] h-16 bg-gray-500 rounded-r-sm"></div>
-                    <div className="absolute top-52 -right-[11px] w-[3px] h-10 bg-gray-500 rounded-r-sm"></div>
-                </>
-            )}
-            <div className={`w-full h-full overflow-hidden relative border-[1px] border-gray-800/50 ${screenClass} flex flex-col`}>
-                <div className="absolute top-0 w-full h-12 z-40 flex justify-between items-start px-6 pt-3 pointer-events-none">
-                    <span className="text-[12px] font-semibold text-white tracking-wide pl-1">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    <div className="pr-1 flex gap-1.5 items-center"><Signal className="w-3 h-3 text-white" /><Wifi className="w-3 h-3 text-white" /><Battery className="w-4 h-4 text-white" /></div>
-                </div>
-                {isIphone ? (
-                    <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[100px] h-[30px] bg-black rounded-full z-30 flex justify-end items-center pr-2 pointer-events-none transition-all duration-300 group-hover:w-[110px]">
-                       <div className="w-2 h-2 rounded-full bg-gray-800/50 mr-1"></div><div className="w-3 h-3 rounded-full bg-gray-800/80"></div>
-                    </div>
-                ) : (
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 w-4 h-4 bg-black rounded-full z-30 border border-gray-800/50 pointer-events-none flex items-center justify-center"><div className="w-1.5 h-1.5 bg-gray-900 rounded-full opacity-60"></div></div>
-                )}
-                {isLocked ? (
-                    <div className={`w-full h-full ${wallpaperClass} flex flex-col relative z-20 cursor-pointer`} onClick={() => setIsLocked(false)}>
-                        <div className="flex-1 flex flex-col items-center justify-start pt-24 animate-in fade-in zoom-in duration-700">
-                            <Lock className="w-5 h-5 text-white/70 mb-4" />
-                            <div className="text-6xl font-thin text-white tracking-tighter mb-2 font-[system-ui]">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</div>
-                            <div className="text-lg text-white/90 font-medium tracking-wide">{currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-                        </div>
-                        <div className="px-4 pb-24 space-y-2">
-                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-white/5">
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-gray-900 p-1 rounded-md border border-white/10">{isIphone ? <Apple className="w-3 h-3 text-white" /> : <MonitorSmartphone className="w-3 h-3 text-white" />}</div>
-                                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-wide">Vault Security</span>
-                                    </div>
-                                    <span className="text-[10px] text-white/60">now</span>
-                                </div>
-                                <div className="text-white font-semibold text-sm">{name}</div>
-                                <div className="text-white/70 text-xs mt-0.5">{accounts.length} accounts secured. Tap to unlock.</div>
-                            </div>
-                        </div>
-                        <div className="absolute bottom-10 w-full flex justify-between px-12 items-center text-white/80">
-                            <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center"><Fingerprint className="w-5 h-5" /></div>
-                            <div className="flex flex-col items-center gap-1 animate-pulse"><span className="text-[10px] uppercase font-bold tracking-widest opacity-60">Swipe up</span><div className="w-10 h-1 bg-white rounded-full opacity-80"></div></div>
-                            <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center"><div className="w-4 h-4 border-2 border-white rounded-sm opacity-80"></div></div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className={`h-full w-full ${wallpaperClass} flex flex-col relative z-10`}>
-                        <div className="pt-14 pb-4 px-6 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${isIphone ? "bg-white/10 text-white border border-white/20" : "bg-green-500/10 text-green-300 border border-green-500/20"}`}>
-                                {isIphone ? <Apple className="w-3 h-3"/> : <MonitorSmartphone className="w-3 h-3"/>}
-                                <span className="truncate max-w-[120px]">{name}</span>
-                            </div>
-                            <button onClick={() => setIsLocked(true)} className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/80 transition-colors backdrop-blur-sm"><Lock className="w-3 h-3" /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-3 custom-scrollbar relative">
-                            {accounts.map(acc => (
-                                <div key={acc.id} className="bg-gray-900/95 backdrop-blur-xl p-3.5 rounded-2xl border border-white/10 shadow-lg relative group/card hover:bg-gray-900 transition-colors">
-                                    <div className="flex justify-between items-start mb-3 border-b border-gray-700/50 pb-2">
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-inner ${acc.status === 'GOOD ACC.' ? 'bg-gradient-to-br from-blue-600 to-indigo-600' : 'bg-gradient-to-br from-red-600 to-orange-600'}`}>
-                                                {acc.handle ? acc.handle[0].toUpperCase() : <User className="w-5 h-5"/>}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="font-bold text-white text-xs truncate leading-tight mb-0.5">{acc.handle || acc.username}</div>
-                                                <div className={`text-[9px] truncate px-1 rounded w-fit ${
-                                                    acc.status === 'GOOD ACC.' ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
-                                                }`}>
-                                                    {acc.status}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button onClick={() => handleOpenModal(acc)} className="text-gray-500 hover:text-white transition-colors"><MoreVertical className="w-4 h-4" /></button>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="bg-black/60 rounded-lg px-2.5 py-2 flex justify-between items-center border border-white/5">
-                                            <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Pass</span>
-                                            <div className="flex gap-2 items-center">
-                                                <span className="text-[10px] text-white font-mono tracking-widest">{acc.password || '••••••'}</span>
-                                                <button onClick={() => copyToClipboard(acc.password || '', acc.id+'pwd')} className="text-gray-500 hover:text-blue-400 transition-colors">
-                                                    {copiedId === acc.id+'pwd' ? <Check className="w-3 h-3 text-green-500"/> : <Copy className="w-3 h-3"/>}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        {acc.secretKey && (
-                                            <div className="bg-black/60 rounded-lg px-2.5 py-2 flex justify-between items-center border border-white/5">
-                                                <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">2FA</span>
-                                                <div className="flex gap-2 items-center">
-                                                    <TOTPDisplay secret={acc.secretKey} compact={true} />
-                                                    <button onClick={() => copyToClipboard(acc.secretKey || '', acc.id+'2fa')} className="text-gray-500 hover:text-blue-400 transition-colors">
-                                                        {copiedId === acc.id+'2fa' ? <Check className="w-3 h-3 text-green-500"/> : <Copy className="w-3 h-3"/>}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="h-12 w-full flex items-center justify-center z-20 pointer-events-none">
-                            {isIphone ? <div className="w-[35%] h-1 bg-white rounded-full shadow-sm opacity-80"></div> : 
-                            <div className="flex items-center gap-12 text-white/50"><ChevronLeft className="w-5 h-5" /><div className="w-3 h-3 rounded-full border-2 border-white/50"></div><div className="w-3 h-3 rounded-sm border-2 border-white/50"></div></div>}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-      );
-  };
-
   return (
-    <div className="space-y-6 animate-fade-in">
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col xl:flex-row justify-between items-start gap-6">
-            <div className="flex-1">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Lock className="w-6 h-6 text-purple-400" /> Account Vault</h2>
-                <p className="text-gray-400 text-sm mt-1 mb-4">Secure credentials and device assignment management.</p>
-                <div className="flex flex-wrap gap-4">
-                    <div className="bg-gray-900 border border-gray-700 px-4 py-2 rounded-lg flex items-center gap-3"><CheckCircle className="w-5 h-5 text-green-400" /><div><p className="text-xs text-gray-500 uppercase font-bold">Active</p><p className="text-lg font-bold text-white">{stats.totalGood}</p></div></div>
-                    <div className="bg-gray-900 border border-gray-700 px-4 py-2 rounded-lg flex items-center gap-3"><Apple className="w-5 h-5 text-blue-400" /><div><p className="text-xs text-gray-500 uppercase font-bold">iOS</p><p className="text-lg font-bold text-white">{stats.iphone}</p></div></div>
-                    <div className="bg-gray-900 border border-gray-700 px-4 py-2 rounded-lg flex items-center gap-3"><MonitorSmartphone className="w-5 h-5 text-green-400" /><div><p className="text-xs text-gray-500 uppercase font-bold">Android</p><p className="text-lg font-bold text-white">{stats.android}</p></div></div>
-                    {stats.logout > 0 && <div className="bg-orange-900/20 border border-orange-500/30 px-4 py-2 rounded-lg flex items-center gap-3"><LogOut className="w-5 h-5 text-orange-400" /><div><p className="text-xs text-orange-300 uppercase font-bold">Logout</p><p className="text-lg font-bold text-white">{stats.logout}</p></div></div>}
-                    <div className="bg-gray-900 border border-gray-700 px-4 py-2 rounded-lg flex items-center gap-3"><AlertCircle className="w-5 h-5 text-gray-400" /><div><p className="text-xs text-gray-500 uppercase font-bold">Unassigned</p><p className="text-lg font-bold text-white">{stats.other}</p></div></div>
-                    {stats.restricted > 0 && <div className="bg-red-900/20 border border-red-500/30 px-4 py-2 rounded-lg flex items-center gap-3"><AlertTriangle className="w-5 h-5 text-red-400" /><div><p className="text-xs text-red-300 uppercase font-bold">Issues</p><p className="text-lg font-bold text-white">{stats.restricted}</p></div></div>}
+    <div className="space-y-8 animate-fade-in">
+      
+      {/* HEADER DASHBOARD */}
+      <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
+           <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg shadow-lg">
+                   <Shield className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white">Account Vault</h2>
+              </div>
+              <p className="text-gray-400 text-sm">Secure credentials and device assignment management.</p>
+           </div>
+           
+           <div className="flex gap-3">
+              <button 
+                onClick={handleExportVault} 
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-all hover:scale-105 active:scale-95"
+              >
+                 <FileSpreadsheet className="w-5 h-5"/> Export Full Vault
+              </button>
+              <button 
+                onClick={() => handleOpenModal()} 
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-purple-900/30 transition-all hover:scale-105 active:scale-95"
+              >
+                 <Plus className="w-5 h-5"/> Add Account
+              </button>
+           </div>
+        </div>
+
+        {/* SUMMARY CARDS */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            {/* Card 1: Restricted */}
+            <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-red-900/20">
+                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1 text-center">Restricted / Issues</span>
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    <span className="text-2xl font-bold text-white">{stats.restricted}</span>
                 </div>
             </div>
-            <div className="flex flex-col items-end gap-3 w-full xl:w-auto">
-                <div className="flex items-center gap-2 bg-gray-900 p-1 rounded-lg border border-gray-700 w-full xl:w-auto">
-                    <button onClick={() => setActiveTab('list')} className={`flex-1 xl:flex-none px-4 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors ${activeTab === 'list' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}><Grid className="w-4 h-4" /> Categorized List</button>
-                    <button onClick={() => setActiveTab('devices')} className={`flex-1 xl:flex-none px-4 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors ${activeTab === 'devices' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}><LayoutGrid className="w-4 h-4" /> Device Sort</button>
+            {/* Card 2: Not Signed Up */}
+            <div className="bg-gray-700/20 border border-gray-600/30 p-4 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-gray-700/30">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 text-center">Not Signed Up</span>
+                <div className="flex items-center gap-2">
+                    <UserX className="w-5 h-5 text-gray-400" />
+                    <span className="text-2xl font-bold text-white">{stats.notSigned}</span>
                 </div>
-                <div className="flex gap-2 w-full xl:w-auto">
-                    <div className="relative flex-1 xl:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <input 
-                            type="text" 
-                            placeholder="Search..." 
-                            className="w-full bg-gray-900 border border-gray-700 text-white pl-9 pr-8 py-2.5 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        {searchTerm && (
-                            <button 
-                                onClick={() => setSearchTerm('')} 
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors p-1"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        )}
-                    </div>
-                    <button onClick={() => setShowFilters(!showFilters)} className={`p-2.5 rounded-lg border transition-colors ${showFilters ? 'bg-purple-500/20 border-purple-500 text-purple-300' : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'}`}><Filter className="w-4 h-4" /></button>
+            </div>
+            {/* Card 3: iPhone */}
+            <div className="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-blue-900/20">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1 text-center">iPhones</span>
+                <div className="flex items-center gap-2">
+                    <Apple className="w-5 h-5 text-blue-500" />
+                    <span className="text-2xl font-bold text-white">{stats.ios}</span>
                 </div>
-                <div className="flex gap-2 w-full xl:w-auto">
-                    <button onClick={handleExportExcel} className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg transition-all"><FileSpreadsheet className="w-4 h-4" /> Export</button>
-                    <button onClick={() => handleOpenModal()} className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg transition-all"><Plus className="w-4 h-4" /> Add Account</button>
+            </div>
+            {/* Card 4: Android */}
+            <div className="bg-emerald-900/10 border border-emerald-500/20 p-4 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-emerald-900/20">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1 text-center">Androids</span>
+                <div className="flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-emerald-500" />
+                    <span className="text-2xl font-bold text-white">{stats.android}</span>
+                </div>
+            </div>
+            {/* Card 5: Unassigned */}
+            <div className="bg-purple-900/10 border border-purple-500/20 p-4 rounded-xl flex flex-col items-center justify-center transition-all hover:bg-purple-900/20">
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1 text-center">Unassigned</span>
+                <div className="flex items-center gap-2">
+                    <HelpCircle className="w-5 h-5 text-purple-500" />
+                    <span className="text-2xl font-bold text-white">{stats.unassigned}</span>
                 </div>
             </div>
         </div>
 
-        {showFilters && (
-            <div className="bg-gray-800 border border-gray-700 p-4 rounded-xl space-y-4 animate-in slide-in-from-top-2">
-                <div className="flex flex-wrap gap-4 items-center">
-                    <span className="text-xs font-bold text-gray-400 uppercase">Status & Device Filters:</span>
-                    <div className="flex flex-wrap gap-2">
-                        {[
-                            { id: 'all', label: 'All Accounts', icon: null },
-                            { id: 'good', label: 'Good Accs', icon: CheckCircle, color: 'text-green-400' },
-                            { id: 'restricted', label: 'Restricted', icon: AlertTriangle, color: 'text-red-400' },
-                            { id: 'unassigned', label: 'Unassigned', icon: AlertCircle, color: 'text-gray-400' },
-                            { id: 'verify', label: 'Needs Verify', icon: AlertTriangle, color: 'text-orange-400' },
-                            { id: 'nosignup', label: 'Not Signed Up', icon: X, color: 'text-pink-400' },
-                            { id: 'android', label: 'Android', icon: MonitorSmartphone, color: 'text-green-400' },
-                            { id: 'iphone', label: 'iPhone', icon: Apple, color: 'text-blue-400' },
-                        ].map((filter) => (
-                            <button
-                                key={filter.id}
-                                onClick={() => setFilterType(filter.id)}
-                                className={`
-                                    px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-2
-                                    ${filterType === filter.id 
-                                        ? 'bg-purple-600 text-white border-purple-500 shadow-lg scale-105' 
-                                        : 'bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-500 hover:text-white'}
-                                `}
-                            >
-                                {filter.icon && <filter.icon className={`w-3 h-3 ${filterType === filter.id ? 'text-white' : filter.color}`} />}
-                                {filter.label}
-                            </button>
-                        ))}
-                    </div>
+        {/* Search & Filter Toolbar */}
+        <div className="flex flex-col md:flex-row gap-4 border-t border-gray-700 pt-4">
+           {/* Search Input with Mode */}
+           <div className="flex-1 flex gap-2">
+              <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                  <input 
+                     type="text" 
+                     placeholder={searchMode === 'start' ? 'Username starts with...' : searchMode === 'end' ? 'Username ends with...' : 'Search accounts...'} 
+                     className="w-full bg-gray-900 border border-gray-600 text-white pl-9 pr-4 py-2.5 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm shadow-inner"
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
+              
+              {/* Search Mode Selector */}
+              <div className="relative bg-gray-900 border border-gray-600 rounded-xl flex items-center px-2">
+                 <Filter className="w-4 h-4 text-gray-400 mr-2" />
+                 <select 
+                    value={searchMode}
+                    onChange={(e) => setSearchMode(e.target.value as any)}
+                    className="bg-transparent text-gray-300 text-sm font-medium focus:outline-none appearance-none pr-6 py-2 cursor-pointer"
+                 >
+                    <option value="contains">Contains</option>
+                    <option value="start">Starts With</option>
+                    <option value="end">Ends With</option>
+                 </select>
+                 <ChevronDown className="w-3 h-3 text-gray-500 absolute right-2 pointer-events-none" />
+              </div>
+           </div>
+
+           {/* Stats / Toggles - Kept as Filters/Toggles */}
+           <div className="flex gap-2 overflow-x-auto pb-1">
+              <button onClick={() => setSections({ ...sections, restricted: !sections.restricted })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.restricted ? 'bg-red-900/20 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                Restricted ({stats.restricted})
+              </button>
+              <button onClick={() => setSections({ ...sections, notSigned: !sections.notSigned })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.notSigned ? 'bg-gray-700/50 text-gray-300 border-gray-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                Not Signed Up ({stats.notSigned})
+              </button>
+              <button onClick={() => setSections({ ...sections, ios: !sections.ios })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.ios ? 'bg-blue-900/20 text-blue-400 border-blue-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                iOS ({stats.ios})
+              </button>
+              <button onClick={() => setSections({ ...sections, android: !sections.android })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.android ? 'bg-emerald-900/20 text-emerald-400 border-emerald-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                Android ({stats.android})
+              </button>
+              <button onClick={() => setSections({ ...sections, unassigned: !sections.unassigned })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.unassigned ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                Unassigned ({stats.unassigned})
+              </button>
+              {stats.other > 0 && (
+                <button onClick={() => setSections({ ...sections, other: !sections.other })} className={`whitespace-nowrap text-xs px-3 py-2 rounded-lg border transition-colors ${sections.other ? 'bg-gray-700 text-gray-300 border-gray-500/30' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                    Other ({stats.other})
+                </button>
+              )}
+           </div>
+        </div>
+      </div>
+
+      {/* SEGREGATED SECTIONS */}
+      <div className="space-y-6">
+         
+         {/* 1. RESTRICTED / ISSUES */}
+         {sections.restricted && stats.restricted > 0 && (
+            <div className="space-y-3">
+               <button onClick={() => setSections(prev => ({...prev, restricted: !prev.restricted}))} className="flex items-center gap-3 w-full text-left group">
+                  <ChevronDown className="w-5 h-5 text-red-500" />
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 group-hover:bg-red-500/20 transition-colors">
+                     <AlertTriangle className="w-4 h-4 text-red-500" />
+                     <span className="text-sm font-bold text-red-400 uppercase tracking-wide">Restricted / Issues ({stats.restricted})</span>
+                  </div>
+                  <div className="h-px bg-red-900/30 flex-1"></div>
+               </button>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-red-900/30 ml-2 animate-in slide-in-from-left-2">
+                  {restrictedGroup.map(renderCard)}
+               </div>
+            </div>
+         )}
+
+         {/* 2. NOT SIGNED UP */}
+         {sections.notSigned && stats.notSigned > 0 && (
+            <div className="space-y-3">
+               <button onClick={() => setSections(prev => ({...prev, notSigned: !prev.notSigned}))} className="flex items-center gap-3 w-full text-left group">
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-700/30 border border-gray-600/30 group-hover:bg-gray-700/50 transition-colors">
+                     <UserX className="w-4 h-4 text-gray-400" />
+                     <span className="text-sm font-bold text-gray-300 uppercase tracking-wide">Not Signed Up ({stats.notSigned})</span>
+                  </div>
+                  <div className="h-px bg-gray-700 flex-1"></div>
+               </button>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-gray-700 ml-2 animate-in slide-in-from-left-2">
+                  {notSignedGroup.map(renderCard)}
+               </div>
+            </div>
+         )}
+
+         {/* 3. iOS SECTION */}
+         {sections.ios && (
+            <div className="space-y-3">
+                <button onClick={() => setSections(prev => ({...prev, ios: !prev.ios}))} className="flex items-center gap-3 w-full text-left group">
+                {sections.ios ? <ChevronDown className="w-5 h-5 text-blue-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-transparent group-hover:bg-gray-800 transition-colors">
+                    <Apple className="w-5 h-5 text-gray-200" />
+                    <span className="text-sm font-bold text-gray-200 uppercase tracking-wide">iPhone Devices ({stats.ios})</span>
                 </div>
-                
-                <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-gray-700/50">
-                    <span className="text-xs font-bold text-gray-400 uppercase">Advanced:</span>
-                    <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Email Starts With:</span><input type="text" maxLength={1} className="w-10 bg-gray-900 border border-gray-700 text-white text-center rounded p-1 focus:ring-1 focus:ring-purple-500 outline-none uppercase" value={emailStartChar} onChange={(e) => setEmailStartChar(e.target.value)}/></div>
-                    <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Username Ends With:</span><input type="text" className="w-16 bg-gray-900 border border-gray-700 text-white text-center rounded p-1 focus:ring-1 focus:ring-purple-500 outline-none" placeholder="e.g. 88" value={emailEndChar} onChange={(e) => setEmailEndChar(e.target.value)}/></div>
-                    <div className="flex items-center gap-2 ml-auto md:ml-0">
-                        <span className="text-xs text-gray-500 flex items-center gap-1"><Calendar className="w-3 h-3"/> Date Modified:</span>
-                        <input 
-                            type="date" 
-                            className="bg-gray-900 border border-gray-700 text-white rounded p-1 text-xs focus:ring-1 focus:ring-purple-500 outline-none [color-scheme:dark]" 
-                            value={filterDate} 
-                            onChange={(e) => setFilterDate(e.target.value)}
-                        />
-                        {filterDate && <button onClick={() => setFilterDate('')} className="text-gray-500 hover:text-white"><X className="w-3 h-3"/></button>}
-                    </div>
-                    <button onClick={() => { setEmailStartChar(''); setEmailEndChar(''); setFilterType('all'); setFilterDate(''); }} className="text-xs text-red-400 hover:text-red-300 ml-auto border border-red-500/30 px-3 py-1 rounded hover:bg-red-900/20 transition-colors">Clear All Filters</button>
+                <div className="h-px bg-gray-700 flex-1"></div>
+                </button>
+                {sections.ios && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-gray-800 ml-2 animate-in slide-in-from-left-2">
+                    {iosGroup.map(renderCard)}
+                    {iosGroup.length === 0 && <div className="text-sm text-gray-500 italic p-2">No active iOS devices found.</div>}
                 </div>
-            </div>
-        )}
-
-        {activeTab === 'list' && (
-            <div className="space-y-8">
-                {categorizedData.logout.length > 0 && (
-                    <div>
-                        <button onClick={() => toggleSection('logout')} className="w-full flex items-center justify-between mb-4 group text-left">
-                            <h3 className="text-lg font-bold text-orange-400 flex items-center gap-2 bg-orange-900/10 p-3 rounded-lg border border-orange-500/20 w-fit group-hover:bg-orange-900/20 transition-colors">
-                                {collapsedSections.has('logout') ? <ChevronRight className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
-                                <LogOut className="w-5 h-5" /> Logout Required ({categorizedData.logout.length})
-                            </h3>
-                            <div className="h-px bg-orange-900/30 flex-1 ml-4 group-hover:bg-orange-900/50 transition-colors"></div>
-                        </button>
-                        {!collapsedSections.has('logout') && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in slide-in-from-top-2">
-                                {categorizedData.logout.map(acc => <AccountCard key={acc.id} account={acc} type="logout" />)}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {categorizedData.restricted.length > 0 && (
-                    <div>
-                        <button onClick={() => toggleSection('restricted')} className="w-full flex items-center justify-between mb-4 group text-left">
-                            <h3 className="text-lg font-bold text-red-400 flex items-center gap-2 bg-red-900/10 p-3 rounded-lg border border-red-500/20 w-fit group-hover:bg-red-900/20 transition-colors">
-                                {collapsedSections.has('restricted') ? <ChevronRight className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
-                                <AlertTriangle className="w-5 h-5" /> Restricted / Issues ({categorizedData.restricted.length})
-                            </h3>
-                            <div className="h-px bg-red-900/30 flex-1 ml-4 group-hover:bg-red-900/50 transition-colors"></div>
-                        </button>
-                        {!collapsedSections.has('restricted') && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in slide-in-from-top-2">
-                                {categorizedData.restricted.map(acc => <AccountCard key={acc.id} account={acc} type="restricted" />)}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {categorizedData.other.length > 0 && (
-                    <div>
-                        <button onClick={() => toggleSection('other')} className="w-full flex items-center gap-4 mb-4 group text-left">
-                            <div className="flex items-center gap-2 text-lg font-bold text-gray-300">
-                                {collapsedSections.has('other') ? <ChevronRight className="w-5 h-5 text-gray-500"/> : <ChevronDown className="w-5 h-5 text-gray-500"/>}
-                                <Laptop className="w-5 h-5" /> Other / Unassigned ({categorizedData.other.length})
-                            </div>
-                            <div className="h-px bg-gray-800 flex-1 group-hover:bg-gray-700 transition-colors"></div>
-                        </button>
-                        {!collapsedSections.has('other') && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in slide-in-from-top-2">
-                                {categorizedData.other.map(acc => <AccountCard key={acc.id} account={acc} type="other" />)}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {categorizedData.iphone.length > 0 && (
-                    <div>
-                        <button onClick={() => toggleSection('iphone')} className="w-full flex items-center gap-4 mb-4 group text-left">
-                            <div className="flex items-center gap-2 text-lg font-bold text-white">
-                                {collapsedSections.has('iphone') ? <ChevronRight className="w-5 h-5 text-gray-500"/> : <ChevronDown className="w-5 h-5 text-gray-500"/>}
-                                <Apple className="w-5 h-5 text-gray-300" /> iPhone Devices ({categorizedData.iphone.length})
-                            </div>
-                            <div className="h-px bg-gray-800 flex-1 group-hover:bg-gray-700 transition-colors"></div>
-                        </button>
-                        {!collapsedSections.has('iphone') && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in slide-in-from-top-2">
-                                {categorizedData.iphone.map(acc => <AccountCard key={acc.id} account={acc} type="iphone" />)}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {categorizedData.android.length > 0 && (
-                    <div>
-                        <button onClick={() => toggleSection('android')} className="w-full flex items-center gap-4 mb-4 group text-left">
-                            <div className="flex items-center gap-2 text-lg font-bold text-white">
-                                {collapsedSections.has('android') ? <ChevronRight className="w-5 h-5 text-gray-500"/> : <ChevronDown className="w-5 h-5 text-gray-500"/>}
-                                <MonitorSmartphone className="w-5 h-5 text-gray-300" /> Android Devices ({categorizedData.android.length})
-                            </div>
-                            <div className="h-px bg-gray-800 flex-1 group-hover:bg-gray-700 transition-colors"></div>
-                        </button>
-                        {!collapsedSections.has('android') && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-in slide-in-from-top-2">
-                                {categorizedData.android.map(acc => <AccountCard key={acc.id} account={acc} type="android" />)}
-                            </div>
-                        )}
-                    </div>
-                )}
-                {filteredAccounts.length === 0 && (
-                    <div className="p-12 text-center text-gray-500 border border-dashed border-gray-700 rounded-xl bg-gray-800/30"><Search className="w-12 h-12 mx-auto mb-3 opacity-20" /><p>No accounts found matching your filters.</p></div>
                 )}
             </div>
-        )}
+         )}
 
-        {/* Updated Device Grid to support 3 columns (xl:grid-cols-3) */}
-        {activeTab === 'devices' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {masterDeviceOrder.map((groupKey, index) => {
-                    // Only render if it contains visible accounts (matches filter)
-                    if (!visibleDeviceKeys.has(groupKey)) return null;
-
-                    const displayName = allDeviceGroups.get(groupKey)?.displayName || groupKey;
-                    
-                    // Filter accounts for this group based on current filters
-                    const groupAccounts = filteredAccounts.filter(acc => {
-                        const d = acc.device ? acc.device.trim() : '';
-                        const k = d ? d.toLowerCase().replace(/\s+/g, ' ') : 'unassigned';
-                        return k === groupKey;
-                    });
-
-                    return (
-                        <div 
-                            key={groupKey}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, index)}
-                            onDragOver={(e) => handleDragOver(e, index)}
-                            onDrop={(e) => handleDrop(e, index)}
-                            className={`bg-gray-800 border rounded-xl overflow-hidden transition-all ${
-                                draggedIndex === index ? 'opacity-50 border-purple-500 border-dashed' : 'border-gray-700 hover:border-gray-600'
-                            }`}
-                        >
-                            <div className="bg-gray-900/50 p-4 flex items-center justify-between border-b border-gray-700 cursor-move">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-gray-800 rounded-lg"><GripHorizontal className="w-4 h-4 text-gray-500" /></div>
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-white text-lg">{displayName}</h3>
-                                        <span className="bg-gray-800 px-2 py-0.5 rounded text-xs text-gray-400">{groupAccounts.length}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="p-4 flex justify-center bg-gray-800/50">
-                                <PhoneDevice name={displayName} accounts={groupAccounts} />
-                            </div>
-                        </div>
-                    );
-                })}
-                {filteredAccounts.length === 0 && (
-                    <div className="col-span-full p-12 text-center text-gray-500 border border-dashed border-gray-700 rounded-xl bg-gray-800/30">
-                        <Search className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                        <p>No accounts found matching your filters.</p>
-                    </div>
-                )}
-            </div>
-        )}
-
-        {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
-                <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
-                    <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-700">
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2">{editingId ? <Edit2 className="w-5 h-5 text-purple-400"/> : <Plus className="w-5 h-5 text-green-400"/>} {editingId ? 'Edit Credentials' : 'New Account Entry'}</h3>
-                        <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
-                    </div>
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-400 uppercase">Status</label>
-                                <select className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
-                                    <option value="GOOD ACC.">GOOD ACC.</option>
-                                    <option value="RESTRICTED">RESTRICTED</option>
-                                    <option value="BANNED">BANNED</option>
-                                    <option value="NEEDS VERIFY">NEEDS VERIFY</option>
-                                    <option value="Not signed up for TK account">Not signed up for TK account</option>
-                                    <option value="Email doesn't signed up for TK">Email doesn't signed up for TK</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-400 uppercase">Device Assignment</label>
-                                <div className="relative">
-                                    <input type="text" list="devices-list" placeholder="e.g. iPhone 15 Pro Max" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" value={formData.device} onChange={(e) => setFormData({...formData, device: e.target.value})}/>
-                                    <datalist id="devices-list">{existingDevices.map((d, i) => <option key={i} value={d} />)}</datalist>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        {/* Split Email and Handle Inputs Explicitly */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Email Address (Login)</label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                <input required type="text" placeholder="example@email.com" className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-3 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})}/>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Username / Handle</label>
-                            <div className="relative">
-                                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                <input type="text" placeholder="username123" className="w-full bg-gray-900 border border-gray-700 text-white pl-10 pr-3 py-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" value={formData.handle} onChange={(e) => setFormData({...formData, handle: e.target.value})}/>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-400 uppercase">Account Password</label>
-                                <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none font-mono" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})}/>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-400 uppercase">Email Password</label>
-                                <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none font-mono" value={formData.emailPassword} onChange={(e) => setFormData({...formData, emailPassword: e.target.value})}/>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase">2FA Secret Key (TOTP)</label>
-                            <input type="text" placeholder="Paste secret key here..." className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none font-mono text-xs" value={formData.secretKey} onChange={(e) => setFormData({...formData, secretKey: e.target.value})}/>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Notes / Sim Info</label>
-                            <textarea rows={3} className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none resize-none" value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})}/>
-                        </div>
-                        <div className="pt-4 flex justify-end gap-3">
-                            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white transition-colors font-medium">Cancel</button>
-                            <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-purple-900/20 transition-all">Save Entry</button>
-                        </div>
-                    </form>
+         {/* 4. ANDROID SECTION */}
+         {sections.android && (
+            <div className="space-y-3">
+                <button onClick={() => setSections(prev => ({...prev, android: !prev.android}))} className="flex items-center gap-3 w-full text-left group">
+                {sections.android ? <ChevronDown className="w-5 h-5 text-emerald-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-transparent group-hover:bg-gray-800 transition-colors">
+                    <Smartphone className="w-5 h-5 text-emerald-400" />
+                    <span className="text-sm font-bold text-gray-200 uppercase tracking-wide">Android Devices ({stats.android})</span>
                 </div>
+                <div className="h-px bg-gray-700 flex-1"></div>
+                </button>
+                {sections.android && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-gray-800 ml-2 animate-in slide-in-from-left-2">
+                    {androidGroup.map(renderCard)}
+                    {androidGroup.length === 0 && <div className="text-sm text-gray-500 italic p-2">No active Android devices found.</div>}
+                </div>
+                )}
             </div>
-        )}
+         )}
+
+         {/* 5. UNASSIGNED */}
+         {sections.unassigned && (
+            <div className="space-y-3">
+                <button onClick={() => setSections(prev => ({...prev, unassigned: !prev.unassigned}))} className="flex items-center gap-3 w-full text-left group">
+                {sections.unassigned ? <ChevronDown className="w-5 h-5 text-purple-500" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-transparent group-hover:bg-gray-800 transition-colors">
+                    <HelpCircle className="w-5 h-5 text-purple-400" />
+                    <span className="text-sm font-bold text-gray-200 uppercase tracking-wide">Unassigned Accounts ({stats.unassigned})</span>
+                </div>
+                <div className="h-px bg-gray-700 flex-1"></div>
+                </button>
+                {sections.unassigned && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-gray-800 ml-2 animate-in slide-in-from-left-2">
+                    {unassignedGroup.map(renderCard)}
+                    {unassignedGroup.length === 0 && <div className="text-sm text-gray-500 italic p-2">All accounts have devices assigned.</div>}
+                </div>
+                )}
+            </div>
+         )}
+
+         {/* 6. OTHER DEVICES */}
+         {sections.other && stats.other > 0 && (
+            <div className="space-y-3">
+                <button onClick={() => setSections(prev => ({...prev, other: !prev.other}))} className="flex items-center gap-3 w-full text-left group">
+                {sections.other ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-500" />}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-transparent group-hover:bg-gray-800 transition-colors">
+                    <Monitor className="w-5 h-5 text-gray-400" />
+                    <span className="text-sm font-bold text-gray-200 uppercase tracking-wide">Other Devices ({stats.other})</span>
+                </div>
+                <div className="h-px bg-gray-700 flex-1"></div>
+                </button>
+                {sections.other && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pl-4 border-l-2 border-gray-800 ml-2 animate-in slide-in-from-left-2">
+                    {otherDeviceGroup.map(renderCard)}
+                </div>
+                )}
+            </div>
+         )}
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+            <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl overflow-y-auto max-h-[90vh]">
+               <div className="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                     {editingAccount ? <Edit2 className="w-5 h-5 text-blue-400"/> : <Plus className="w-5 h-5 text-green-400"/>}
+                     {editingAccount ? 'Edit Account' : 'New Vault Entry'}
+                  </h3>
+                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
+               </div>
+               
+               <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Device Name</label>
+                        <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. iPhone 13 Pro" value={formData.device} onChange={e => setFormData({...formData, device: e.target.value})} />
+                     </div>
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Status</label>
+                        <select className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none appearance-none" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                           <option>GOOD ACC.</option>
+                           <option>NEEDS VERIFY</option>
+                           <option>RESTRICTED</option>
+                           <option>NOT SIGNED UP</option>
+                           <option>BANNED</option>
+                        </select>
+                     </div>
+                  </div>
+                  
+                  {/* SPLIT EMAIL AND USERNAME */}
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1"><Mail className="w-3 h-3"/> Email</label>
+                        <input required type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" placeholder="email@example.com" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                     </div>
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1"><User className="w-3 h-3"/> Username</label>
+                        <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" placeholder="@handle" value={formData.handle} onChange={e => setFormData({...formData, handle: e.target.value})} />
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Password</label>
+                        <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-mono" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                     </div>
+                     <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Email Pass (Opt)</label>
+                        <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-mono" value={formData.emailPassword} onChange={e => setFormData({...formData, emailPassword: e.target.value})} />
+                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                     <label className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1"><Key className="w-3 h-3"/> 2FA Secret Key <span className="text-gray-600 normal-case font-normal">(Base32)</span></label>
+                     <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-mono text-xs tracking-wide" placeholder="JBSWY3DPEHPK3PXP" value={formData.secretKey} onChange={e => setFormData({...formData, secretKey: e.target.value})} />
+                  </div>
+                  <div className="space-y-1.5">
+                     <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+                     <input type="text" className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" placeholder="Additional details..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
+                  </div>
+                  <div className="flex justify-end pt-2 gap-3">
+                     <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-400 font-bold hover:text-white transition-colors">Cancel</button>
+                     <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 transition-transform active:scale-95">Save Account</button>
+                  </div>
+               </form>
+            </div>
+         </div>
+      )}
     </div>
   );
 };
